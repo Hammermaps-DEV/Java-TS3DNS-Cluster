@@ -27,21 +27,31 @@ import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.net.SocketException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ts3dns.cluster.TS3DNSCluster;
+import ts3dns.cluster.TS3DNSClusterServer;
+import ts3dns.database.MySQLDatabaseHandler;
 
 public class TS3DNSClient extends Thread {
     private final Socket client;
     private BufferedReader input;
     private PrintStream output;
     private String search_dns;
+    private final MySQLDatabaseHandler mysql;
+    private String query;
+    private String ip;
 
-    public TS3DNSClient(Socket client) {
+    public TS3DNSClient(Socket client, MySQLDatabaseHandler mysql, String default_ip) {
         this.client = client;
+        this.mysql = mysql;
         this.search_dns = "";
         this.input = null;
         this.output = null;
+        this.ip = default_ip;
     }
     
     public void run() {
@@ -52,10 +62,27 @@ public class TS3DNSClient extends Thread {
             search_dns = readUntilEnd();
             
             Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Search for DNS: ")).append(search_dns).toString());
-
+            if(!TS3DNSClusterServer.existsCache(search_dns)) {
+                Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Search DNS in MySQL")).toString());
+                query = "SELECT `ip` FROM `dns` WHERE `dns` = ? LIMIT 1;";
+                ResultSet rs;
+                try (PreparedStatement stmt = this.mysql.prepare(query, search_dns)) {
+                    rs = stmt.executeQuery();
+                    while(rs.next()) {
+                        ip = rs.getString("ip");
+                        TS3DNSClusterServer.setCache(search_dns, ip);
+                        Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Found: ")).append(ip).append(" for DNS: ").append(search_dns).toString());
+                    }
+                    stmt.close(); rs.close();
+                }
+            } else {
+                ip = TS3DNSClusterServer.getCache(search_dns);
+                Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Found: ")).append(ip).append(" for DNS: ").append(search_dns).append(" in Cache").toString());
+            }
+            
             //Send IP
             output = new PrintStream(client.getOutputStream(), true, "UTF-8");
-            output.print("123.123.123.123:1234");
+            output.print(ip);
             output.flush();
             
             try {
@@ -73,7 +100,7 @@ public class TS3DNSClient extends Thread {
             Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, exception);
         } catch (UnsupportedEncodingException exception) {
             Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, exception);
-        } catch (IOException exception) {
+        } catch (IOException | SQLException exception) {
             Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, exception);
         }
     }
