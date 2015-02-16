@@ -23,13 +23,13 @@ package ts3dns.cluster;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class TS3DNSCluster {
     public static Properties properties = null;
-    public static final int port = 41144;
     public static final String VERSION = "TS3DNS Cluster 1.0 Alpha";
     public static String configFile = "TS3DNS-Cluster.cfg";
     private static TS3DNSClusterServer server;
@@ -37,9 +37,13 @@ public class TS3DNSCluster {
     public static void main(String[] args) {
         Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Start ")).append(VERSION).toString());
         if(loadConfig()) {
-            server = new TS3DNSClusterServer();
-            server.start();
-            Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Running ")).append(VERSION).toString());
+            try {
+                server = new TS3DNSClusterServer();
+                server.start();
+                Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Running ")).append(VERSION).toString());
+            } catch (SQLException ex) {
+                Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.SEVERE, null, ex);
+            }
         } else {
             Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.CONFIG, (new StringBuilder("Error while loading configuration from ")).append(configFile).toString());
         }

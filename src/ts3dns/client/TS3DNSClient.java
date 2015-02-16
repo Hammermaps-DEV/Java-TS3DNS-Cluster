@@ -64,9 +64,11 @@ public class TS3DNSClient extends Thread {
             Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Search for DNS: ")).append(search_dns).toString());
             if(!TS3DNSClusterServer.existsCache(search_dns)) {
                 Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Search DNS in MySQL")).toString());
-                query = "SELECT `ip` FROM `dns` WHERE `dns` = ? LIMIT 1;";
+                query = "SELECT `ip` FROM `dns` WHERE `dns` = ? AND (`machine-id` = 0 OR `machine-id` = ?) LIMIT 1;";
                 ResultSet rs;
-                try (PreparedStatement stmt = this.mysql.prepare(query, search_dns)) {
+                try (PreparedStatement stmt = this.mysql.prepare(query)) {
+                    stmt.setString(1, search_dns);
+                    stmt.setInt(2, TS3DNSClusterServer.machine_id);
                     rs = stmt.executeQuery();
                     while(rs.next()) {
                         ip = rs.getString("ip");
