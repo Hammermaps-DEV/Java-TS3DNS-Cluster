@@ -35,17 +35,16 @@ public class TS3DNSCluster {
     private static TS3DNSClusterServer server;
     
     public static void main(String[] args) {
-        Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Start ")).append(VERSION).toString());
         if(loadConfig()) {
+            TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Start ")).append(VERSION).toString(),false);
             try {
-                server = new TS3DNSClusterServer();
-                server.start();
-                Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.INFO, (new StringBuilder("Running ")).append(VERSION).toString());
+                server = new TS3DNSClusterServer(); server.start();
+                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Running ")).append(VERSION).toString(),false);
             } catch (SQLException ex) {
-                Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.SEVERE, null, ex);
+                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.SEVERE,ex.toString(),true);
             }
         } else {
-            Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.CONFIG, (new StringBuilder("Error while loading configuration from ")).append(configFile).toString());
+            Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.CONFIG, (new StringBuilder("Error while loading configuration from ")).append(configFile).toString(),false);
         }
     }
     
@@ -57,7 +56,7 @@ public class TS3DNSCluster {
         properties = new Properties();
         try {
             properties.load(new FileInputStream(confFile));
-            //logFilePath = properties.getProperty("xxxx");
+            //logFilePath = properties.getProperty("logFilePath");
             
             if(!properties.isEmpty() && properties != null) {
                 retValue = true;
@@ -67,5 +66,13 @@ public class TS3DNSCluster {
         }
         
         return retValue;
+    }
+    
+    public static void log(String classn, Level lvl, String msg, boolean error) {
+       // if(Boolean.parseBoolean(properties.getProperty("default_debug")) || error) {
+       //     Logger.getLogger(classn).log(lvl, msg);
+       // } else {
+            System.out.println(msg);
+      //  }
     }
 }
