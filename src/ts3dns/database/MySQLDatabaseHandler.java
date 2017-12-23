@@ -31,13 +31,9 @@ import static ts3dns.cluster.TS3DNSCluster.properties;
 public class MySQLDatabaseHandler {
     private Connection connection = null;
     private String url = "jdbc:mariadb://localhost:3306/project";
-    private String user = "root";
-    private String pass = "";
     
     public MySQLDatabaseHandler(String host, int port, String user, String pass, String db) {
-        this.pass = pass;
-        this.user = user;
-        this.url = "jdbc:mariadb://"+host+":"+port+"/"+db;
+        this.url = "jdbc:mariadb://"+host+":"+port+"/"+db+"?user="+user+"&password="+pass;
         try {
             Class.forName("org.mariadb.jdbc.Driver");
         } catch (ClassNotFoundException ex) {
@@ -48,14 +44,14 @@ public class MySQLDatabaseHandler {
     private void getConnection() throws SQLException {
         if (connection == null || connection.isClosed() || !connection.isValid(3)) {
             TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("Connect to MySQL Server: ")).append(url).toString(),false);
-            connection = DriverManager.getConnection(url,user,pass);
+            connection = DriverManager.getConnection(url);
         }
     }
 
     public PreparedStatement prepare(String query, String dns) throws SQLException {
         this.getConnection();
         if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-          //  TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("MySQL Query: ")).append(query).toString(),false);
+       //     TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("MySQL Query: ")).append(query).toString(),false);
         }
         PreparedStatement stmt = connection.prepareStatement(query);
         stmt.setString(1, dns);
@@ -65,7 +61,7 @@ public class MySQLDatabaseHandler {
     public PreparedStatement prepare(String query) throws SQLException {
         this.getConnection();
         if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-         //   TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("MySQL Query: ")).append(query).toString(),false);
+        //    TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("MySQL Query: ")).append(query).toString(),false);
         }
         PreparedStatement stmt = connection.prepareStatement(query);
         return stmt;

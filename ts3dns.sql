@@ -1,96 +1,103 @@
 -- phpMyAdmin SQL Dump
--- version 4.2.5
--- http://www.phpmyadmin.net
+-- version 4.7.3
+-- https://www.phpmyadmin.net/
 --
--- Host: 127.0.0.1:3306
--- Generation Time: Mar 15, 2015 at 09:02 PM
--- Server version: 10.0.12-MariaDB
--- PHP Version: 5.6.0
+-- Host: 192.168.1.1:3306
+-- Erstellungszeit: 23. Dez 2017 um 19:19
+-- Server-Version: 10.2.11-MariaDB-log
+-- PHP-Version: 7.0.15
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET AUTOCOMMIT = 0;
+START TRANSACTION;
 SET time_zone = "+00:00";
 
 --
--- Database: `testdns`
+-- Datenbank: `system_ts3dns`
 --
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `dns`
+-- Tabellenstruktur für Tabelle `dns`
 --
 
-CREATE TABLE IF NOT EXISTS `dns` (
-`id` int(11) NOT NULL,
+CREATE TABLE `dns` (
+  `id` int(11) NOT NULL,
   `dns` varchar(250) NOT NULL DEFAULT '',
+  `name` varchar(200) NOT NULL DEFAULT '',
   `ip` varchar(50) NOT NULL DEFAULT '000.000.000.000:0000',
-  `port` int(8) NOT NULL DEFAULT '0',
-  `default` int(1) NOT NULL DEFAULT '0',
-  `machine-id` int(5) NOT NULL DEFAULT '0',
-  `server-id` int(11) NOT NULL DEFAULT '0',
-  `vserver-id` int(11) NOT NULL DEFAULT '0',
+  `port` int(8) NOT NULL DEFAULT 0,
+  `default` int(1) NOT NULL DEFAULT 0,
+  `machine-id` int(5) NOT NULL DEFAULT 0,
+  `server-id` int(11) NOT NULL DEFAULT 0,
+  `vserver-id` int(11) NOT NULL DEFAULT 0,
+  `slots` int(5) NOT NULL DEFAULT 100,
   `failback_ip` varchar(25) NOT NULL DEFAULT '000.000.000.000:0000',
-  `failback_port` int(8) NOT NULL DEFAULT '0',
-  `failback` int(1) NOT NULL DEFAULT '0'
-) ENGINE=InnoDB  DEFAULT CHARSET=latin1 AUTO_INCREMENT=3 ;
+  `failback_port` int(8) NOT NULL DEFAULT 0,
+  `failback` int(1) NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 --
--- Dumping data for table `dns`
+-- Daten für Tabelle `dns`
 --
 
-INSERT INTO `dns` (`id`, `dns`, `ip`, `port`, `default`, `machine-id`, `server-id`, `vserver-id`, `failback_ip`, `failback_port`, `failback`) VALUES
-(1, 'reverse.privatedns.com', '123.123.123.123', 2222, 0, 0, 1, 0, '000.000.000.000', 1234, 1),
-(2, 'gggg.ggg1234.fr', '111.111.111.111', 2346, 1, 0, 1, 0, '000.000.000.000', 5678, 1);
+INSERT INTO `dns` (`id`, `dns`, `name`, `ip`, `port`, `default`, `machine-id`, `server-id`, `vserver-id`, `slots`, `failback_ip`, `failback_port`, `failback`) VALUES
+(1, 'hammermaps.de', 'Hammermaps', '127.0.0.1', 9987, 1, 0, 1, 0, 100, '85.10.227.211', 9987, 1),
+(2, 'ts.revoplay.de', 'Revoplay', '127.0.0.1', 9992, 0, 0, 1, 0, 100, '85.10.227.211', 9992, 1),
+(3, 'dkf.hammermaps.de', 'DFK', '127.0.0.1', 9988, 0, 0, 1, 0, 100, '85.10.227.211', 9988, 1);
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `servers`
+-- Tabellenstruktur für Tabelle `servers`
 --
 
-CREATE TABLE IF NOT EXISTS `servers` (
-`id` int(11) NOT NULL,
+CREATE TABLE `servers` (
+  `id` int(11) NOT NULL,
   `ip` varchar(15) COLLATE utf8_unicode_ci NOT NULL DEFAULT '0.0.0.0',
-  `port` int(8) NOT NULL DEFAULT '10011',
+  `port` int(8) NOT NULL DEFAULT 10011,
   `username` varchar(100) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
   `password` varchar(100) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-  `online` int(1) NOT NULL DEFAULT '0'
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci AUTO_INCREMENT=2 ;
+  `online` int(1) NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
--- Dumping data for table `servers`
+-- Daten für Tabelle `servers`
 --
 
 INSERT INTO `servers` (`id`, `ip`, `port`, `username`, `password`, `online`) VALUES
-(1, '127.0.0.1', 10011, 'serveradmin', '+qKHUvEX', 0);
+(1, '127.0.0.1', 10011, 'serveradmin', 'p6zhEXCi', 0);
 
 --
--- Indexes for dumped tables
+-- Indizes der exportierten Tabellen
 --
 
 --
--- Indexes for table `dns`
+-- Indizes für die Tabelle `dns`
 --
 ALTER TABLE `dns`
- ADD PRIMARY KEY (`id`), ADD KEY `dns` (`dns`), ADD KEY `machine-id` (`machine-id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `dns` (`dns`) USING BTREE,
+  ADD KEY `machine-id` (`machine-id`) USING BTREE;
 
 --
--- Indexes for table `servers`
+-- Indizes für die Tabelle `servers`
 --
 ALTER TABLE `servers`
- ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`);
 
 --
--- AUTO_INCREMENT for dumped tables
+-- AUTO_INCREMENT für exportierte Tabellen
 --
 
 --
--- AUTO_INCREMENT for table `dns`
+-- AUTO_INCREMENT für Tabelle `dns`
 --
 ALTER TABLE `dns`
-MODIFY `id` int(11) NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 --
--- AUTO_INCREMENT for table `servers`
+-- AUTO_INCREMENT für Tabelle `servers`
 --
 ALTER TABLE `servers`
-MODIFY `id` int(11) NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;COMMIT;

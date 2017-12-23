@@ -71,8 +71,25 @@ public class TS3DNSClient extends Thread {
             }
             
             //Get DNS
+            client.setSoTimeout(1); //Set Timeout to 1 sec
             input = new BufferedReader(new InputStreamReader(client.getInputStream(), "UTF-8"));
             search_dns = readUntilEnd();
+            
+            //Check has Domain
+            if(search_dns.length() == 0) {
+                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("No DNS!")).toString(),false);
+                try {
+                    if(input != null)
+                        input.close();
+
+                    if(output != null)
+                        output.close();
+
+                    client.close();
+                } catch(IOException exception) {}
+                
+                return;
+            }
             
             if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
                 TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Search for DNS: ")).append(search_dns).toString(),false);
@@ -102,7 +119,8 @@ public class TS3DNSClient extends Thread {
                             append(ip).append(":").append(port).append(" for DNS: ").append(search_dns).toString(),false);
                         }
                     }
-                    stmt.close(); rs.close();
+                    stmt.close(); 
+                    rs.close();
                 }
             } else {
                 if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
@@ -188,7 +206,7 @@ public class TS3DNSClient extends Thread {
                     output.close();
           
                 client.close();
-            } catch(Exception exception) {
+            } catch(IOException exception) {
                 TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
             }
         } catch (SocketException exception) {
@@ -208,7 +226,7 @@ public class TS3DNSClient extends Thread {
             }
             while(input.ready());
             return sb.toString();
-        } catch(Exception exception) {
+        } catch(IOException exception) {
             TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
             return "";
         }

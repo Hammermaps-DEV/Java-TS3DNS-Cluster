@@ -56,8 +56,6 @@ public class TS3DNSCluster {
         properties = new Properties();
         try {
             properties.load(new FileInputStream(confFile));
-            //logFilePath = properties.getProperty("logFilePath");
-            
             if(!properties.isEmpty() && properties != null) {
                 retValue = true;
             }
@@ -69,9 +67,9 @@ public class TS3DNSCluster {
     }
     
     public static void log(String classn, Level lvl, String msg, boolean error) {
-       // if(Boolean.parseBoolean(properties.getProperty("default_debug")) || error) {
-       //     Logger.getLogger(classn).log(lvl, msg);
-       // } else {
+      //  if(Boolean.parseBoolean(properties.getProperty("default_debug")) || error) {
+         //   Logger.getLogger(classn).log(lvl, msg);
+      //  } else {
             System.out.println(msg);
       //  }
     }

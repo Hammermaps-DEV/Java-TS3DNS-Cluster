@@ -17,15 +17,18 @@
  * Autor: Hammermaps.de Development Team
  * Homepage: http://www.hammermaps.de
  */
-package ts3dns.server;
+package ts3dns.cluster;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static ts3dns.cluster.TS3DNSCluster.properties;
 import ts3dns.database.MySQLDatabaseHandler;
+import ts3dns.server.TS3DNSServer;
 
 public class TS3DNSClusterPing extends Thread {
     private MySQLDatabaseHandler mysql = null;
@@ -50,11 +53,15 @@ public class TS3DNSClusterPing extends Thread {
             socket.connect(new InetSocketAddress(ip, port), timeout);
             socket.close();
             query = "UPDATE `servers` SET `online` = 1 WHERE `id` = ?;";
-            //TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), Level.INFO,(new StringBuilder("Check TS3 Server: ").append(ip).append(":").append(port).append(" is Online")).toString(),false);
+            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
+                TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), Level.INFO,(new StringBuilder("Check TS3 Server: ").append(ip).append(":").append(port).append(" is Online")).toString(),false);
+            }
             TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), "on");
-        } catch (Exception ex) {
+        } catch (IOException ex) {
             query = "UPDATE `servers` SET `online` = 0 WHERE `id` = ?;";
-            //TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), Level.INFO,(new StringBuilder("Check TS3 Server: ").append(ip).append(":").append(port).append(" is Offline")).toString(),false);
+            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
+                TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), Level.INFO,(new StringBuilder("Check TS3 Server: ").append(ip).append(":").append(port).append(" is Offline")).toString(),false);
+            }
             TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), "off");
         }
         

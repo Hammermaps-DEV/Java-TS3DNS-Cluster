@@ -56,12 +56,14 @@ public class TS3DNSClusterServer {
     private static String cb_table = "";
     private static String cb_ma_table = "";
     private static String cb_bucket = "";
-    private static int port = 41144;
+    public static int port = 41144;
     private static boolean cb_enabled = false;
     private static boolean is_master = false;
     private static boolean is_slave = false;
     public static int machine_id = 0;
     public TS3DNSServer lvserver = null;
+    public TS3DNSClusterMaster lvmaster = null;
+    public TS3DNSClusterSlave lvslaveserver = null;
     
     public TS3DNSClusterServer() {
         try {
@@ -141,6 +143,7 @@ public class TS3DNSClusterServer {
         if((is_master || is_slave) && cb_enabled) {
             bucket = cluster.openBucket(cb_bucket);
             JsonObject content = JsonObject.create().put("null", "null");
+            //Master Table
             if(bucket.get(cb_ma_table) == null) {
                 bucket.insert(JsonDocument.create(cb_ma_table, content));
             }
@@ -149,12 +152,18 @@ public class TS3DNSClusterServer {
             if(is_slave) {
                 TS3DNSServer.cb_ma_table = cb_ma_table;
                 TS3DNSServer.bucket = bucket;
+                lvslaveserver = new TS3DNSClusterSlave();
+                lvslaveserver.start();
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Teamspeak 3 - DNS Slave Server started!")).toString(),false);
             } else {
                 TS3DNSServer.cb_ma_table = cb_ma_table;
                 TS3DNSServer.bucket = bucket;
-                lvserver = new TS3DNSServer(this.mysql); lvserver.start();
+                lvserver = new TS3DNSServer(this.mysql); 
+                lvserver.start();
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Teamspeak 3 - DNS Master Server started!")).toString(),false);
+                lvmaster = new TS3DNSClusterMaster();
+                lvmaster.bucket = bucket;
+                lvmaster.start(); //Start Slave Check
             }
         }
         
@@ -165,7 +174,7 @@ public class TS3DNSClusterServer {
                     if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
                         TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Connected ")).append(client.getInetAddress()).toString(),false);
                     }
-                    client.setSoTimeout(3000); //Set Client Timeout
+                    client.setSoTimeout(2000); //Set Client Timeout
                     tS3DNSClient = new TS3DNSClient(client,mysql,default_ip,default_port);
                     tS3DNSClient.start();
                 }

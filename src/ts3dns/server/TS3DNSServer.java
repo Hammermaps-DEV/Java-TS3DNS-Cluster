@@ -19,6 +19,7 @@
  */
 package ts3dns.server;
 
+import ts3dns.cluster.TS3DNSClusterPing;
 import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.document.JsonDocument;
 import com.couchbase.client.java.document.json.JsonObject;
@@ -46,8 +47,7 @@ public class TS3DNSServer extends Thread {
         while (true) {
             //Get all Servers
             String query = "SELECT `ip`,`port`,`id` FROM `servers`;";
-            try (PreparedStatement stmt = mysql.prepare(query)) {
-                ResultSet rs = stmt.executeQuery();
+            try (PreparedStatement stmt = mysql.prepare(query); ResultSet rs = stmt.executeQuery()) {
                 while(rs.first() || rs.next()) {
                     String ip = rs.getString("ip");
                     int port = rs.getInt("port");
@@ -59,10 +59,10 @@ public class TS3DNSServer extends Thread {
 
                     ping.start();
                     try {
-                        Thread.sleep(5000); //8 Sek
+                        Thread.sleep(4000); //8 Sek
                     } catch (InterruptedException ex) { }
                 }
-                stmt.close(); rs.close();
+                stmt.close(); 
             } catch (SQLException ex) {
                 TS3DNSCluster.log(TS3DNSServer.class.getName(), Level.SEVERE,ex.getMessage(),true);
             }
@@ -70,7 +70,7 @@ public class TS3DNSServer extends Thread {
     }
     
     //Master-Server Functions
-    public static Map getMaster(String sid) { //Client
+    public static Map getMaster(String sid) { //Server
         Map map = new HashMap();
         found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
         if(found == null) { return map; }
@@ -80,8 +80,27 @@ public class TS3DNSServer extends Thread {
         return map;
     }
     
-    public static boolean existsMaster(String sid) { //Client
+     public static Map getSlave(String sid) { //Client
+        Map map = new HashMap();
+        found = TS3DNSServer.bucket.get("slaves");
+        if(found == null) { return map; }
+        if(!found.content().containsKey(sid)) { return map; }
+        JsonObject content = found.content().getObject(sid);
+        map = content.toMap();
+        return map;
+    }
+    
+    public static boolean existsMaster(String sid) { //Server
         found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+        if(found == null) { return false; }
+        if(!found.content().containsKey(sid)) { return false; }
+        JsonObject content = found.content().getObject(sid);
+        Map data = content.toMap();
+        return data != null;
+    }
+    
+        public static boolean existsSlave(String sid) { //Client
+        found = TS3DNSServer.bucket.get("slaves");
         if(found == null) { return false; }
         if(!found.content().containsKey(sid)) { return false; }
         JsonObject content = found.content().getObject(sid);
@@ -97,6 +116,19 @@ public class TS3DNSServer extends Thread {
             JsonObject content = found.content();
             content.put(sid, data);
             bucket.replace(JsonDocument.create(TS3DNSServer.cb_ma_table, content));
+        }
+    }
+    
+    public static void setSlave(String sid, int time) { //Client
+        Map data = new HashMap();
+        data.put("time", time);
+        data.put("ip", TS3DNSCluster.properties.getProperty("default_server_ip"));
+        data.put("port", TS3DNSCluster.properties.getProperty("default_server_port"));
+        found = TS3DNSServer.bucket.get("slaves");
+        if(found != null) { 
+            JsonObject content = found.content();
+            content.put(sid.toString(), data);
+            bucket.replace(JsonDocument.create("slaves", content));
         }
     }
 }
