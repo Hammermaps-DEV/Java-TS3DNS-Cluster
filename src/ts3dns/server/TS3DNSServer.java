@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import ts3dns.cluster.TS3DNSCluster;
+import ts3dns.cluster.TS3DNSClusterServer;
 import ts3dns.database.MySQLDatabaseHandler;
 
 public class TS3DNSServer extends Thread {
@@ -46,13 +47,15 @@ public class TS3DNSServer extends Thread {
     public void run() {
         while (true) {
             //Get all Servers
-            String query = "SELECT `ip`,`port`,`id` FROM `servers`;";
+            String query = "SELECT `ip`,`port`,`id`,`username`,`password` FROM `servers`;";
             try (PreparedStatement stmt = mysql.prepare(query); ResultSet rs = stmt.executeQuery()) {
                 while(rs.first() || rs.next()) {
                     String ip = rs.getString("ip");
                     int port = rs.getInt("port");
                     int id = rs.getInt("id");
-                    TS3DNSClusterPing ping = new TS3DNSClusterPing(mysql,ip,port,id);
+                    String pw = rs.getString("password");
+                    String user = rs.getString("username");
+                    TS3DNSClusterPing ping = new TS3DNSClusterPing(mysql,ip,port,id,user,pw);
                     if(!TS3DNSServer.existsMaster((new StringBuilder("sid_").append(id)).toString())) {
                         TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), "off");
                     }
@@ -71,64 +74,84 @@ public class TS3DNSServer extends Thread {
     
     //Master-Server Functions
     public static Map getMaster(String sid) { //Server
-        Map map = new HashMap();
-        found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
-        if(found == null) { return map; }
-        if(!found.content().containsKey(sid)) { return map; }
-        JsonObject content = found.content().getObject(sid);
-        map = content.toMap();
-        return map;
+        if(TS3DNSClusterServer.cb_enabled) {
+            Map map = new HashMap();
+            found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+            if(found == null) { return map; }
+            if(!found.content().containsKey(sid)) { return map; }
+            JsonObject content = found.content().getObject(sid);
+            map = content.toMap();
+            return map;
+        }
+        
+        return new HashMap();
     }
     
      public static Map getSlave(String sid) { //Client
-        Map map = new HashMap();
-        found = TS3DNSServer.bucket.get("slaves");
-        if(found == null) { return map; }
-        if(!found.content().containsKey(sid)) { return map; }
-        JsonObject content = found.content().getObject(sid);
-        map = content.toMap();
-        return map;
+        if(TS3DNSClusterServer.cb_enabled) {
+            Map map = new HashMap();
+            found = TS3DNSServer.bucket.get("slaves");
+            if(found == null) { return map; }
+            if(!found.content().containsKey(sid)) { return map; }
+            JsonObject content = found.content().getObject(sid);
+            map = content.toMap();
+            return map;
+        }
+        
+        return new HashMap();
     }
     
     public static boolean existsMaster(String sid) { //Server
-        found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
-        if(found == null) { return false; }
-        if(!found.content().containsKey(sid)) { return false; }
-        JsonObject content = found.content().getObject(sid);
-        Map data = content.toMap();
-        return data != null;
+        if(TS3DNSClusterServer.cb_enabled) {
+            found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+            if(found == null) { return false; }
+            if(!found.content().containsKey(sid)) { return false; }
+            JsonObject content = found.content().getObject(sid);
+            Map data = content.toMap();
+            return data != null;
+        }
+        
+        return false;
     }
     
-        public static boolean existsSlave(String sid) { //Client
-        found = TS3DNSServer.bucket.get("slaves");
-        if(found == null) { return false; }
-        if(!found.content().containsKey(sid)) { return false; }
-        JsonObject content = found.content().getObject(sid);
-        Map data = content.toMap();
-        return data != null;
+    public static boolean existsSlave(String sid) { //Client
+        if(TS3DNSClusterServer.cb_enabled) {
+            found = TS3DNSServer.bucket.get("slaves");
+            if(found == null) { return false; }
+            if(!found.content().containsKey(sid)) { return false; }
+            JsonObject content = found.content().getObject(sid);
+            Map data = content.toMap();
+            return data != null;
+        }
+        
+        return false;
     }
     
     public static void setMaster(String sid, String online) { //Server
-        Map data = new HashMap();
-        data.put("online", online);
-        found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
-        if(found != null) { 
-            JsonObject content = found.content();
-            content.put(sid, data);
-            bucket.replace(JsonDocument.create(TS3DNSServer.cb_ma_table, content));
+        if(TS3DNSClusterServer.cb_enabled) {
+            Map data = new HashMap();
+            data.put("online", online);
+            found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+            if(found != null) { 
+                JsonObject content = found.content();
+                content.put(sid, data);
+                bucket.replace(JsonDocument.create(TS3DNSServer.cb_ma_table, content));
+            }
         }
     }
     
     public static void setSlave(String sid, int time) { //Client
-        Map data = new HashMap();
-        data.put("time", time);
-        data.put("ip", TS3DNSCluster.properties.getProperty("default_server_ip"));
-        data.put("port", TS3DNSCluster.properties.getProperty("default_server_port"));
-        found = TS3DNSServer.bucket.get("slaves");
-        if(found != null) { 
-            JsonObject content = found.content();
-            content.put(sid.toString(), data);
-            bucket.replace(JsonDocument.create("slaves", content));
+        if(TS3DNSClusterServer.cb_enabled) {
+            Map data = new HashMap();
+            data.put("time", time);
+            data.put("ip", TS3DNSCluster.properties.getProperty("default_server_ip"));
+            data.put("port", TS3DNSCluster.properties.getProperty("default_server_port"));
+            found = TS3DNSServer.bucket.get("slaves");
+            if(found != null) { 
+                JsonObject content = found.content();
+                content.put(sid.toString(), data);
+                bucket.replace(JsonDocument.create("slaves", content));
+            }
         }
     }
 }

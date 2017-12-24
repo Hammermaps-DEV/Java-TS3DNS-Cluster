@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 192.168.1.1:3306
--- Erstellungszeit: 23. Dez 2017 um 19:19
+-- Erstellungszeit: 24. Dez 2017 um 13:51
 -- Server-Version: 10.2.11-MariaDB-log
 -- PHP-Version: 7.0.15
 
@@ -33,6 +33,7 @@ CREATE TABLE `dns` (
   `server-id` int(11) NOT NULL DEFAULT 0,
   `vserver-id` int(11) NOT NULL DEFAULT 0,
   `slots` int(5) NOT NULL DEFAULT 100,
+  `active_slots` int(11) NOT NULL DEFAULT 0,
   `failback_ip` varchar(25) NOT NULL DEFAULT '000.000.000.000:0000',
   `failback_port` int(8) NOT NULL DEFAULT 0,
   `failback` int(1) NOT NULL DEFAULT 0
@@ -42,10 +43,9 @@ CREATE TABLE `dns` (
 -- Daten für Tabelle `dns`
 --
 
-INSERT INTO `dns` (`id`, `dns`, `name`, `ip`, `port`, `default`, `machine-id`, `server-id`, `vserver-id`, `slots`, `failback_ip`, `failback_port`, `failback`) VALUES
-(1, 'hammermaps.de', 'Hammermaps', '127.0.0.1', 9987, 1, 0, 1, 0, 100, '85.10.227.211', 9987, 1),
-(2, 'ts.revoplay.de', 'Revoplay', '127.0.0.1', 9992, 0, 0, 1, 0, 100, '85.10.227.211', 9992, 1),
-(3, 'dkf.hammermaps.de', 'DFK', '127.0.0.1', 9988, 0, 0, 1, 0, 100, '85.10.227.211', 9988, 1);
+INSERT INTO `dns` (`id`, `dns`, `name`, `ip`, `port`, `default`, `machine-id`, `server-id`, `vserver-id`, `slots`, `active_slots`, `failback_ip`, `failback_port`, `failback`) VALUES
+(1, 'hammermaps.de', 'TeamSpeak ]I[ Server', '192.168.1.41', 9987, 1, 0, 1, 1, 32, 0, '85.10.227.211', 9987, 1),
+(4, 'test.hammermaps.de', 'Test', '192.168.1.422', 9987, 0, 0, 0, 0, 100, 0, '000.000.000.000:0000', 0, 0);
 
 -- --------------------------------------------------------
 
@@ -67,7 +67,7 @@ CREATE TABLE `servers` (
 --
 
 INSERT INTO `servers` (`id`, `ip`, `port`, `username`, `password`, `online`) VALUES
-(1, '127.0.0.1', 10011, 'serveradmin', 'p6zhEXCi', 0);
+(1, '127.0.0.1', 10011, 'serveradmin', 'aR7pm1sx', 1);
 
 --
 -- Indizes der exportierten Tabellen
@@ -95,7 +95,7 @@ ALTER TABLE `servers`
 -- AUTO_INCREMENT für Tabelle `dns`
 --
 ALTER TABLE `dns`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 --
 -- AUTO_INCREMENT für Tabelle `servers`
 --

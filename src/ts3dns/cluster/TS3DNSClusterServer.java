@@ -56,14 +56,16 @@ public class TS3DNSClusterServer {
     private static String cb_table = "";
     private static String cb_ma_table = "";
     private static String cb_bucket = "";
+    public static int cb_machine_id = 0;
     public static int port = 41144;
-    private static boolean cb_enabled = false;
+    public static boolean cb_enabled = false;
     private static boolean is_master = false;
     private static boolean is_slave = false;
     public static int machine_id = 0;
     public TS3DNSServer lvserver = null;
     public TS3DNSClusterMaster lvmaster = null;
     public TS3DNSClusterSlave lvslaveserver = null;
+    public static Map lock_update = new HashMap();
     
     public TS3DNSClusterServer() {
         try {
@@ -100,6 +102,7 @@ public class TS3DNSClusterServer {
                 cb_bucket = TS3DNSCluster.properties.getProperty("couchbase_bucket");
                 cb_table = TS3DNSCluster.properties.getProperty("couchbase_table");
                 cb_ma_table = TS3DNSCluster.properties.getProperty("couchbase_master_table");
+                cb_machine_id = Integer.parseInt(TS3DNSCluster.properties.getProperty("couchbase_machine_id"));
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Connect to Couchbase Server: '")).append(cb_host).append("'").toString(),false);
                 cluster = CouchbaseCluster.create(cb_host);
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Use Couchbase Server Bucket: '")).append(cb_bucket).append("'").toString(),false);

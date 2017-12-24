@@ -30,7 +30,8 @@ import java.util.logging.Logger;
 
 public class TS3DNSCluster {
     public static Properties properties = null;
-    public static final String VERSION = "TS3DNS Cluster 1.0 Alpha";
+    public static final String VERSION = "TS3-DNS Cluster 1.0 Alpha";
+   // public static String configFile = "/home/masterbee/ts3dns/conf/TS3DNS-Cluster.cfg";
     public static String configFile = "TS3DNS-Cluster.cfg";
     private static TS3DNSClusterServer server;
     
@@ -52,7 +53,10 @@ public class TS3DNSCluster {
     private static boolean loadConfig() {
         boolean retValue = false;
         File confFile = new File(configFile);
-        if(!confFile.isFile()) { return retValue; }
+        if(!confFile.isFile()) { 
+            System.out.println("Config file:'"+configFile+"' not found!"); 
+            return retValue; 
+        }
         properties = new Properties();
         try {
             properties.load(new FileInputStream(confFile));

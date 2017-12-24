@@ -28,12 +28,12 @@ public class TS3DNSClusterSlave extends Thread {
     public void run() 
     {
         String slave_id = new StringBuilder("slave_").append(TS3DNSClusterServer.machine_id).toString();
-        TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Register Slave with ID:")).append(TS3DNSClusterServer.machine_id).toString(),false);
+        TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Register Slave with ID:")).append(TS3DNSClusterServer.cb_machine_id).toString(),false);
         while (true) {
             int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
             TS3DNSServer.setSlave(slave_id, currentTimestamp);
             if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Update Slave with ID:")).append(TS3DNSClusterServer.machine_id).append(" / ").append(currentTimestamp).toString(),false);
+                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Update Slave with ID:")).append(TS3DNSClusterServer.cb_machine_id).append(" / ").append(currentTimestamp).toString(),false);
             }
             try {
                 Thread.sleep(1000);
