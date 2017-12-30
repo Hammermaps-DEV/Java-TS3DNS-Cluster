@@ -38,7 +38,10 @@ public class TS3DNSCluster {
         if(loadConfig()) {
             TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Start ")).append(VERSION).toString(),false);
             try {
-                server = new TS3DNSClusterServer(); server.start();
+                server = new TS3DNSClusterServer(); 
+                Runtime runtime = Runtime.getRuntime();
+                runtime.addShutdownHook(new Thread(() -> {  server.stop(); }));
+                server.start();
                 TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Running ")).append(VERSION).toString(),false);
             } catch (SQLException ex) {
                 TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.SEVERE,ex.toString(),true);

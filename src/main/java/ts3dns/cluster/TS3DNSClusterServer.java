@@ -35,6 +35,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import ts3dns.client.TS3DNSClient;
 import static ts3dns.cluster.TS3DNSCluster.properties;
 import ts3dns.database.MySQLDatabaseHandler;
@@ -79,6 +80,7 @@ public class TS3DNSClusterServer {
             machine_id = Integer.parseInt(TS3DNSCluster.properties.getProperty("default_machine_id"));
             TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Server has Machine-ID: ")).append(Integer.toString(machine_id)).toString(),false);
             TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Waiting for connections on port ")).append(Integer.toString(port)).toString(),false);
+            
             if(!TS3DNSCluster.properties.getProperty("default_server_ip").matches("0.0.0.0")) {
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Server Listen on IP: ")).append(TS3DNSCluster.properties.getProperty("default_server_ip")).toString(),false);
                 server = new ServerSocket();
@@ -197,7 +199,13 @@ public class TS3DNSClusterServer {
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.SEVERE,ex.getMessage(),true);
             }
         }
-        
+    }
+    
+    public void stop() {
+        TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,(new StringBuilder("Stop Server..")).toString(),false);
+        try {
+            mysql.close();
+        } catch (SQLException ex) {}
         cluster.disconnect();
     }
     

@@ -234,10 +234,40 @@ public class TS3DNSClient extends Thread {
                 TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
             }
         } catch (SocketException exception) {
+                if (this.input != null) {
+                    try {
+                        this.input.close();
+                    } catch (IOException ex) {
+                        Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+                if (this.output != null) {
+                    this.output.close();
+                }
             TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
         } catch (UnsupportedEncodingException exception) {
+                if (this.input != null) {
+                    try {
+                        this.input.close();
+                    } catch (IOException ex) {
+                        Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+                if (this.output != null) {
+                    this.output.close();
+                }
             TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
         } catch (IOException | SQLException exception) {
+                if (this.input != null) {
+                    try {
+                        this.input.close();
+                    } catch (IOException ex) {
+                        Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+                if (this.output != null) {
+                    this.output.close();
+                }
             TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
         }
     }

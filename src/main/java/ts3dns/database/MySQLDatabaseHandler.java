@@ -41,6 +41,12 @@ public class MySQLDatabaseHandler {
         }
     }
 
+    public void close() throws SQLException {
+        if(connection.isClosed()) {
+            connection.close();
+        }
+    }
+    
     private void getConnection() throws SQLException {
         if (connection == null || connection.isClosed() || !connection.isValid(3)) {
             TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("Connect to MySQL Server: ")).append(url).toString(),false);
