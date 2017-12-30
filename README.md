@@ -18,20 +18,23 @@ Darum kann es bei einem Ausfall einige Sekunden dauern, bis der Failback greift.
 Der Master wird zudem die Datenbank regelmäßig aktualisieren, das bedeutet Ihr könnt 
 'Server Namen, Aktuelle Slots, Maximale Slots und V-Server ID' abrufen, sofern ihr das braucht :)
 
-Installation:
+## Installation:
 
-Vorbereitung:
+**Vorbereitung:**
 1. Einen lauffähigen MySQL Server, TeamSpeak 3 Server + SSA Account, Couchbase Server (Optional)
 2. Die Datei release\ts3dns.sql in euren MySQL Server einspielen (Navicat oder PhpMyAdmin etc.)
 3. Die Datensätze in der MySQL Datenbank beliebig ändern:
 
-Die Tabelle 'servers':
+### Die Tabelle 'servers':
+```
 ID: Die ID ist die, die in der Tabelle 'dns' unter 'server-id' verwendet werden soll.
 IP: Die Adresse der TeamSpeak 3 Hauptinstanz.
 Port: Der Server Query Port des Servers.
 Username und Passwort: Der SSA Account der TeamSpeak 3 Hauptinstanz.
+```
 
-Die Tabelle 'dns':
+### Die Tabelle 'dns':
+```
 dns: Der Hostname / Domain die aufgelöst werden soll.
 name: Der Name des virtuellen TeamSpeak Servers auf Port xxx (Wird automatisch eingetragen wenn Ihr den DNS startet)
 ip: Die Ip des virtuellen TeamSpeak Servers (Meistens der selbe wie die Hauptinstanz)
@@ -47,8 +50,10 @@ usecount: Wie oft wurde diese DNS angefragt?
 failback_ip: IP des Faliback Servers
 failback_port: Port des Faliback Servers
 failback: 1/0 ist die Faliback Funktion verfügbar?
+```
 
-4. Die TS3DNS-Cluster.cfg bearbeiten.
+### 4. Die TS3DNS-Cluster.cfg bearbeiten.
+```
 Die 'default_ip_for_dns' ist eine IP Adresse die zbs. auf einen Faliback Server Zeigt, wenn überhaupt keine DNS Einträge vorhanden sein sollten. 
 Der 'default_port_for_dns' ist der Port des Faliback Server der in 'default_ip_for_dns' eingetragen ist.
 
@@ -61,6 +66,7 @@ Für Cluster:
 Der Master hat immer 'default_master_server' auf 'true' und 'default_slave_server' auf 'false'
 Die Slaves 'default_master_server' auf 'false' und 'default_slave_server' immer auf 'true'
 ( 'Global Couchbase Cache' ist notwendig! )
+```
 
 Wenn alles konfiguriert ist, kann der Server mit 'java -jar Java-TS3DNS-Cluster-Maven-1.0-jar-with-dependencies.jar' gestartet werden.
 Es ist kein Anti-Flood oder sonstiges im Server eingebaut, das müsst Ihr über andere Software machen oder es noch einbauen.
@@ -69,4 +75,4 @@ Das ganze ist nicht perfekt da es mein erstes Java Projekt ist.
 Wenn Ihr das ganze verwendet oder helfen möchtet, würde ich mich sehr über eine Nachricht oder Pull requests freuen.
 Ich wünsche euch viel Erfolg und Spaß damit.
 
-Der Code steht unter GNU General Public License Version 3
+**Der Code steht unter GNU General Public License Version 3**
