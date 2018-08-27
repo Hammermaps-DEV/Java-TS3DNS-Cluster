@@ -38,10 +38,12 @@ public class TS3DNSServer extends Thread {
     public static Bucket bucket = null;
     private static JsonDocument found = null;
     public static String cb_ma_table = "";
+    public TS3DNSClusterServer common = null;
     
-    public TS3DNSServer(MySQLDatabaseHandler mysql) {
+    public TS3DNSServer(TS3DNSClusterServer common, MySQLDatabaseHandler mysql) {
         TS3DNSCluster.log(TS3DNSServer.class.getName(), Level.INFO,(new StringBuilder("Start Teamspeak 3 - DNS Master Server")).toString(),false);
         this.mysql = mysql;
+        this.common = common;
     }
 
     public void run() {
@@ -49,15 +51,16 @@ public class TS3DNSServer extends Thread {
             //Get all Servers
             String query = "SELECT `ip`,`port`,`id`,`username`,`password` FROM `servers`;";
             try (PreparedStatement stmt = mysql.prepare(query); ResultSet rs = stmt.executeQuery()) {
-                while(rs.first() || rs.next()) {
+                while(rs.next()) {
                     String ip = rs.getString("ip");
                     int port = rs.getInt("port");
                     int id = rs.getInt("id");
                     String pw = rs.getString("password");
                     String user = rs.getString("username");
-                    TS3DNSClusterPing ping = new TS3DNSClusterPing(mysql,ip,port,id,user,pw);
+                   
+                    TS3DNSClusterPing ping = new TS3DNSClusterPing(this.common,mysql,ip,port,id,user,pw);
                     if(!TS3DNSServer.existsMaster((new StringBuilder("sid_").append(id)).toString())) {
-                        TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), "off");
+                        TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), 0);
                     }
 
                     ping.start();
@@ -127,7 +130,7 @@ public class TS3DNSServer extends Thread {
         return false;
     }
     
-    public static void setMaster(String sid, String online) { //Server
+    public static void setMaster(String sid, int online) { //Server
         if(TS3DNSClusterServer.cb_enabled) {
             Map data = new HashMap();
             data.put("online", online);
@@ -149,7 +152,7 @@ public class TS3DNSServer extends Thread {
             found = TS3DNSServer.bucket.get("slaves");
             if(found != null) { 
                 JsonObject content = found.content();
-                content.put(sid.toString(), data);
+                content.put(sid, data);
                 bucket.replace(JsonDocument.create("slaves", content));
             }
         }

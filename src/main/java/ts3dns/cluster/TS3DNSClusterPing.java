@@ -24,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ts3dns.client.TS3Updater;
@@ -33,6 +34,7 @@ import ts3dns.server.TS3DNSServer;
 
 public class TS3DNSClusterPing extends Thread {
     private MySQLDatabaseHandler mysql = null;
+    private TS3DNSClusterServer common = null;
     private final int timeout = 1000;
     private int port = 0;
     private int id = 0;
@@ -43,13 +45,14 @@ public class TS3DNSClusterPing extends Thread {
     private String pw = "";
     private TS3Updater update;
 
-    public TS3DNSClusterPing(MySQLDatabaseHandler mysql, String ip, int port, int id, String user, String pw) {
+    public TS3DNSClusterPing(TS3DNSClusterServer common,MySQLDatabaseHandler mysql, String ip, int port, int id, String user, String pw) {
         this.id = id;
         this.ip = ip;
         this.port = port;
         this.mysql = mysql;
         this.user = user;
         this.pw = pw;
+        this.common = common;
         
         //Update the Database over TS3 API
         update = new TS3Updater(mysql,ip,port,id,this.user,this.pw);
@@ -64,7 +67,9 @@ public class TS3DNSClusterPing extends Thread {
             
             query = "UPDATE `servers` SET `online` = 1 WHERE `id` = ?;";
             if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), Level.INFO,(new StringBuilder("Check TeamSpeak 3 Master Server: '").append(ip).append(":").append(port).append("' is Online")).toString(),false);
+                TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), Level.INFO,
+                        (new StringBuilder("Check TeamSpeak 3 Master Server: '").
+                                append(ip).append(":").append(port).append("' is Online")).toString(),false);
             }
             
             //Update the Database over TS3 API
@@ -79,13 +84,32 @@ public class TS3DNSClusterPing extends Thread {
                 }
             }
             
-            TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), "on");
+            //this.common.sendMSG("[color=green][b][### Proxy ###] => TeaSpeak Instance: '"+ip+":"+port+"' is Online[/b][/color]");
+            
+            //Check is 0 to 1 (send MSG)
+            Map msd = TS3DNSServer.getMaster((new StringBuilder("sid_").append(id)).toString());
+            int is_online = Integer.parseInt(msd.get("online").toString());
+            if(is_online == 0 && Boolean.parseBoolean(properties.getProperty("default_send_massages")))  {
+                TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), 1);
+                this.common.sendMSG("[color=green][b][### Proxy ###] => TeaSpeak Instance: '"+ip+":"+port+"' is Online[/b][/color]");
+                //Send MSG
+            }
         } catch (IOException ex) {
             query = "UPDATE `servers` SET `online` = 0 WHERE `id` = ?;";
             if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), Level.INFO,(new StringBuilder("Check TeamSpeak 3 Master Server: '").append(ip).append(":").append(port).append("' is Offline")).toString(),false);
+                TS3DNSCluster.log(TS3DNSClusterPing.class.getName(), 
+                        Level.INFO,(new StringBuilder("Check TeamSpeak 3 Master Server: '").
+                                append(ip).append(":").append(port).append("' is Offline")).toString(),false);
             }
-            TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), "off");
+            
+            //Check is 1 to 0 (send MSG)
+            Map msd = TS3DNSServer.getMaster((new StringBuilder("sid_").append(id)).toString());
+            int is_online = Integer.parseInt(msd.get("online").toString());
+            if(is_online == 1 && Boolean.parseBoolean(properties.getProperty("default_send_massages")))  {
+                TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), 0);
+                this.common.sendMSG("[color=red][b][### Proxy ###] => TeaSpeak Instance: '"+ip+":"+port+"' is Offline![/b][/color]");
+                //Send MSG
+            }
         }
         
         try (PreparedStatement stmt = this.mysql.prepare(query)) {

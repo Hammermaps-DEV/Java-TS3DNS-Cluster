@@ -29,7 +29,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import ts3dns.cluster.TS3DNSCluster;
 import static ts3dns.cluster.TS3DNSCluster.properties;
-import ts3dns.cluster.TS3DNSClusterPing;
 import ts3dns.cluster.TS3DNSClusterServer;
 import ts3dns.database.MySQLDatabaseHandler;
 
@@ -67,15 +66,16 @@ public class TS3Updater extends Thread {
         config.setCommandTimeout(15000);
         
         if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-            config.setDebugToFile(true);
-            config.setDebugLevel(Level.WARNING);
+            config.setEnableCommunicationsLogging(true);
         }
         
         final TS3Query tsquery = new TS3Query(config);
         tsquery.connect();
 
         final TS3Api api = tsquery.getApi();
-        if(api.login(this.user, this.pw)) {
+        api.login(this.user, this.pw);
+        
+        if(!"".equals(api.getVersion().getBuild())) {
             query = "SELECT `port`,`id` FROM `dns` WHERE `server-id` = ? AND (`machine-id` = ? OR `machine-id` = 0);";
             ResultSet rs;
             try (PreparedStatement stmt = this.mysql.prepare(query)) {
@@ -88,37 +88,39 @@ public class TS3Updater extends Thread {
                         TS3DNSCluster.log(TS3Updater.class.getName(), Level.INFO,(new StringBuilder("Update TS3 Server for ID: ").append(this.sid).append(" [").append(ip).append(":").append(rs.getString("port")).append(" ]")).toString(),false);
                     }
 
-                    if(api.selectVirtualServerByPort(Integer.parseInt(rs.getString("port")))) {
-                        query = "UPDATE `dns` SET `active_slots` = ?, `slots` = ?, `name` = ?, `vserver-id` = ? WHERE `id` = ?;";
+                    api.selectVirtualServerByPort(Integer.parseInt(rs.getString("port")));
+                    query = "UPDATE `dns` SET `active_slots` = ?, `slots` = ?, `name` = ?, `vserver-id` = ? WHERE `id` = ?;";
                         try (PreparedStatement stmt_update = this.mysql.prepare(query)) {
-                            int ClientsOnline = (api.getServerInfo().getClientsOnline()-1);
-                            int MaxClients = api.getServerInfo().getMaxClients();
-                            String ServerName = api.getServerInfo().getName();
-
-                            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                                TS3DNSCluster.log(TS3Updater.class.getName(), Level.INFO,(new StringBuilder("Update TS3 Server for ID: ").append(this.sid).
-                                        append(" [ClientsOnline=").append(ClientsOnline).append(",").
-                                        append(" MaxClients=").append(MaxClients).append(",").
-                                        append(" ServerName=").append(ServerName).append("]")).toString(),false);
-                            }
-
-                            //Insert to SQL-Query
-                            stmt_update.setInt(1, ClientsOnline);
-                            stmt_update.setInt(2, MaxClients);
-                            stmt_update.setString(3,  ServerName);
-                            stmt_update.setInt(4,  api.getServerInfo().getId());
-                            stmt_update.setInt(5, Integer.parseInt(rs.getString("id")));
-                            stmt_update.executeQuery();
-                            stmt_update.close();
-
-                            //Lock
-                            int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
-                            TS3DNSClusterServer.lock_update.put(this.sid, currentTimestamp);
-
-                        } catch (SQLException ex) {
-                            Logger.getLogger(TS3DNSClusterPing.class.getName()).log(Level.SEVERE, null, ex);
+                        int ClientsOnline = api.getServerInfo().getClientsOnline();
+                        int MaxClients = api.getServerInfo().getMaxClients();
+                        String ServerName = api.getServerInfo().getName();
+                        if(ClientsOnline != 0) {
+                            ClientsOnline = (ClientsOnline-1);
                         }
-                    }                
+
+                        if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
+                            TS3DNSCluster.log(TS3Updater.class.getName(), Level.INFO,(new StringBuilder("Update TS3 Server for ID: ").append(this.sid).
+                                    append(" [ClientsOnline=").append(ClientsOnline).append(",").
+                                    append(" MaxClients=").append(MaxClients).append(",").
+                                    append(" ServerName=").append(ServerName).append("]")).toString(),false);
+                        }
+
+                        //Insert to SQL-Query
+                        stmt_update.setInt(1, ClientsOnline);
+                        stmt_update.setInt(2, MaxClients);
+                        stmt_update.setString(3,  ServerName);
+                        stmt_update.setInt(4,  api.getServerInfo().getId());
+                        stmt_update.setInt(5, Integer.parseInt(rs.getString("id")));
+                        stmt_update.executeQuery();
+                        stmt_update.close();
+
+                        //Lock
+                        int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
+                        TS3DNSClusterServer.lock_update.put(this.sid, currentTimestamp);
+
+                    } catch (SQLException ex) {
+                        Logger.getLogger(TS3Updater.class.getName()).log(Level.SEVERE, null, ex);
+                    }         
                 }
 
                 stmt.close(); 

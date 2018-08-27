@@ -25,6 +25,9 @@ import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.CouchbaseCluster;
 import com.couchbase.client.java.document.JsonDocument;
 import com.couchbase.client.java.document.json.JsonObject;
+import com.github.theholywaffle.teamspeak3.TS3Api;
+import com.github.theholywaffle.teamspeak3.TS3Config;
+import com.github.theholywaffle.teamspeak3.TS3Query;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -37,6 +40,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ts3dns.client.TS3DNSClient;
+import ts3dns.client.TS3Updater;
 import static ts3dns.cluster.TS3DNSCluster.properties;
 import ts3dns.database.MySQLDatabaseHandler;
 import ts3dns.server.TS3DNSServer;
@@ -180,7 +184,7 @@ public class TS3DNSClusterServer {
         }
         
         //Status Updates for Database
-        lvserver = new TS3DNSServer(this.mysql); 
+        lvserver = new TS3DNSServer(this,this.mysql); 
         lvserver.start();
         
         while(!Thread.currentThread().isInterrupted()) {
@@ -240,7 +244,7 @@ public class TS3DNSClusterServer {
         Map data = (Map)cache.get(key);
         if(data == null) { return false; }
         int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
-        if(((int)data.get("time")+5) <= currentTimestamp) return false;
+        if(((int)data.get("time")+10) <= currentTimestamp) return false;
         return cache.containsKey(key);
     }
     
@@ -273,5 +277,41 @@ public class TS3DNSClusterServer {
         }
         
         cache.put(key, data);
+    }
+    
+    public void sendMSG(String msg) { 
+        String query = "SELECT * FROM `servers` WHERE `online` = 1;";
+        ResultSet rs; TS3Query tsquery; TS3Api api;
+        try (PreparedStatement stmt = this.mysql.prepare(query)) {
+            rs = stmt.executeQuery();
+            TS3Config config;
+            while(rs.next()) {
+                config = new TS3Config();
+                config.setHost(rs.getString("ip"));
+                config.setQueryPort(Integer.parseInt(rs.getString("port")));
+                config.setCommandTimeout(15000);
+
+                if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
+                    config.setEnableCommunicationsLogging(true);
+                }
+
+                tsquery = new TS3Query(config);
+                tsquery.connect();
+
+                api = tsquery.getApi();
+                api.login(rs.getString("username"), rs.getString("password"));
+                api.selectVirtualServerById(1);
+                api.broadcast(msg);
+
+                //Logout
+                api.logout();
+                tsquery.exit();
+            }
+
+            stmt.close(); 
+            rs.close();
+        } catch (SQLException ex) {
+            Logger.getLogger(TS3Updater.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 }
