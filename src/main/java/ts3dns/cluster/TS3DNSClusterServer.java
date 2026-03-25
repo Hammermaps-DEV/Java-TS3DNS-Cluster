@@ -20,11 +20,11 @@
 
 package ts3dns.cluster;
 
-import com.couchbase.client.java.Bucket;
 import com.couchbase.client.java.Cluster;
-import com.couchbase.client.java.CouchbaseCluster;
-import com.couchbase.client.java.document.JsonDocument;
-import com.couchbase.client.java.document.json.JsonObject;
+import com.couchbase.client.java.Collection;
+import com.couchbase.client.java.json.JsonObject;
+import com.couchbase.client.java.kv.GetResult;
+import com.couchbase.client.core.error.DocumentNotFoundException;
 import com.github.theholywaffle.teamspeak3.TS3Api;
 import com.github.theholywaffle.teamspeak3.TS3Config;
 import com.github.theholywaffle.teamspeak3.TS3Query;
@@ -59,7 +59,7 @@ public class TS3DNSClusterServer {
     // S-3: use ConcurrentHashMap to avoid race conditions under concurrent access
     private static final Map<String, Map<String, Object>> cache = new ConcurrentHashMap<>();
     private static Cluster cluster = null;
-    private static Bucket bucket = null;
+    private static Collection bucket = null;
     private static String cb_table;
     private static String cb_ma_table;
     private static String cb_bucket;
@@ -126,16 +126,15 @@ public class TS3DNSClusterServer {
                 
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
                         "Connect to Couchbase Server: '" + cb_host + "'", false);
-                cluster = CouchbaseCluster.create(cb_host);
-                cluster.authenticate(cb_username, cb_password);
+                cluster = Cluster.connect(cb_host, cb_username, cb_password);
                 
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
                         "Use Couchbase Server Bucket: '" + cb_bucket + "'", false);
-                bucket = cluster.openBucket(cb_bucket);
+                bucket = cluster.bucket(cb_bucket).defaultCollection();
 
                 JsonObject content = JsonObject.create().put("null", "null");
-                if(bucket.get(cb_table) == null) {
-                    bucket.insert(JsonDocument.create(cb_table, content));
+                if(!bucket.exists(cb_table).exists()) {
+                    bucket.insert(cb_table, content);
                 }
             } else {
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
@@ -173,11 +172,11 @@ public class TS3DNSClusterServer {
         }
         
         if((is_master || is_slave) && cb_enabled) {
-            bucket = cluster.openBucket(cb_bucket);
+            bucket = cluster.bucket(cb_bucket).defaultCollection();
             JsonObject content = JsonObject.create().put("null", "null");
             //Master Table
-            if(bucket.get(cb_ma_table) == null) {
-                bucket.insert(JsonDocument.create(cb_ma_table, content));
+            if(!bucket.exists(cb_ma_table).exists()) {
+                bucket.insert(cb_ma_table, content);
             }
             
             //Start Teamspeak 3 Server checker
@@ -249,10 +248,14 @@ public class TS3DNSClusterServer {
         //Check Couchbase Cluster
         if(!cache.containsKey(key)) {
             if(cb_enabled) {
-                JsonDocument found = bucket.get(cb_table);
-                if(found == null) { return false; }
-                if(!found.content().containsKey(key)) { return false; }
-                JsonObject content = found.content().getObject(key);
+                GetResult found;
+                try {
+                    found = bucket.get(cb_table);
+                } catch (DocumentNotFoundException e) {
+                    return false;
+                }
+                if(!found.contentAsObject().containsKey(key)) { return false; }
+                JsonObject content = found.contentAsObject().getObject(key);
                 Map<String, Object> data = content.toMap();
                 if(data == null) { return false; }
                 if(Integer.parseInt(data.get("mid").toString()) == 0 || Integer.parseInt(data.get("mid").toString()) == machine_id) {
@@ -295,14 +298,19 @@ public class TS3DNSClusterServer {
 
         //Update Couchbase Cluster
         if(cb_enabled) {
-            JsonDocument found = bucket.get(cb_table);
-            JsonObject content = found.content();
-            content.put(key, data);
-            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
-                TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
-                        "Update TSDNS to Couchbase Cluster: Update -> " + ip + ":" + port, false);
+            try {
+                GetResult foundResult = bucket.get(cb_table);
+                JsonObject content = foundResult.contentAsObject();
+                content.put(key, data);
+                if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                    TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
+                            "Update TSDNS to Couchbase Cluster: Update -> " + ip + ":" + port, false);
+                }
+                bucket.replace(cb_table, content);
+            } catch (DocumentNotFoundException e) {
+                TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.WARNING,
+                        "Couchbase document '" + cb_table + "' not found during setCache", false);
             }
-            bucket.replace(JsonDocument.create(cb_table, content));
         }
         
         cache.put(key, data);
