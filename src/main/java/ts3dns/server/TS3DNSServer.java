@@ -36,21 +36,25 @@ import ts3dns.database.MySQLDatabaseHandler;
 public class TS3DNSServer extends Thread {
     private final MySQLDatabaseHandler mysql;
     public static Bucket bucket = null;
-    private static JsonDocument found = null;
     public static String cb_ma_table = "";
     public TS3DNSClusterServer common = null;
     
     public TS3DNSServer(TS3DNSClusterServer common, MySQLDatabaseHandler mysql) {
-        TS3DNSCluster.log(TS3DNSServer.class.getName(), Level.INFO,(new StringBuilder("Start Teamspeak 3 - DNS Master Server")).toString(),false);
+        TS3DNSCluster.log(TS3DNSServer.class.getName(), Level.INFO,
+                "Start Teamspeak 3 - DNS Master Server", false);
         this.mysql = mysql;
         this.common = common;
     }
 
+    @Override
     public void run() {
-        while (true) {
+        // B-6: use isInterrupted() instead of while(true) for clean shutdown support
+        while(!Thread.currentThread().isInterrupted()) {
             //Get all Servers
             String query = "SELECT `ip`,`port`,`id`,`username`,`password` FROM `servers`;";
-            try (PreparedStatement stmt = mysql.prepare(query); ResultSet rs = stmt.executeQuery()) {
+            // B-2/B-3: use try-with-resources; no redundant stmt.close()
+            try (PreparedStatement stmt = mysql.prepare(query);
+                 ResultSet rs = stmt.executeQuery()) {
                 while(rs.next()) {
                     String ip = rs.getString("ip");
                     int port = rs.getInt("port");
@@ -58,28 +62,33 @@ public class TS3DNSServer extends Thread {
                     String pw = rs.getString("password");
                     String user = rs.getString("username");
                    
-                    TS3DNSClusterPing ping = new TS3DNSClusterPing(this.common,mysql,ip,port,id,user,pw);
-                    if(!TS3DNSServer.existsMaster((new StringBuilder("sid_").append(id)).toString())) {
-                        TS3DNSServer.setMaster((new StringBuilder("sid_").append(id)).toString(), 0);
+                    TS3DNSClusterPing ping = new TS3DNSClusterPing(this.common, mysql, ip, port, id, user, pw);
+                    if(!TS3DNSServer.existsMaster("sid_" + id)) {
+                        TS3DNSServer.setMaster("sid_" + id, 0);
                     }
 
                     ping.start();
                     try {
                         Thread.sleep(4000); //8 Sek
-                    } catch (InterruptedException ex) { }
+                    } catch (InterruptedException ex) {
+                        // B-6: restore interrupt flag and stop the loop
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
-                stmt.close(); 
             } catch (SQLException ex) {
-                TS3DNSCluster.log(TS3DNSServer.class.getName(), Level.SEVERE,ex.getMessage(),true);
+                TS3DNSCluster.log(TS3DNSServer.class.getName(), Level.SEVERE, ex.getMessage(), true);
             }
         }    
     }
     
     //Master-Server Functions
-    public static Map getMaster(String sid) { //Server
+    // Q-1: use typed Map
+    public static Map<String, Object> getMaster(String sid) { //Server
         if(TS3DNSClusterServer.cb_enabled) {
-            Map map = new HashMap();
-            found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+            // S-3: use local variable instead of shared static field
+            JsonDocument found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+            Map<String, Object> map = new HashMap<>();
             if(found == null) { return map; }
             if(!found.content().containsKey(sid)) { return map; }
             JsonObject content = found.content().getObject(sid);
@@ -87,13 +96,15 @@ public class TS3DNSServer extends Thread {
             return map;
         }
         
-        return new HashMap();
+        return new HashMap<>();
     }
     
-     public static Map getSlave(String sid) { //Client
+    // Q-1: use typed Map
+    public static Map<String, Object> getSlave(String sid) { //Client
         if(TS3DNSClusterServer.cb_enabled) {
-            Map map = new HashMap();
-            found = TS3DNSServer.bucket.get("slaves");
+            // S-3: use local variable instead of shared static field
+            JsonDocument found = TS3DNSServer.bucket.get("slaves");
+            Map<String, Object> map = new HashMap<>();
             if(found == null) { return map; }
             if(!found.content().containsKey(sid)) { return map; }
             JsonObject content = found.content().getObject(sid);
@@ -101,16 +112,17 @@ public class TS3DNSServer extends Thread {
             return map;
         }
         
-        return new HashMap();
+        return new HashMap<>();
     }
     
     public static boolean existsMaster(String sid) { //Server
         if(TS3DNSClusterServer.cb_enabled) {
-            found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+            // S-3: use local variable instead of shared static field
+            JsonDocument found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
             if(found == null) { return false; }
             if(!found.content().containsKey(sid)) { return false; }
             JsonObject content = found.content().getObject(sid);
-            Map data = content.toMap();
+            Map<String, Object> data = content.toMap();
             return data != null;
         }
         
@@ -119,11 +131,12 @@ public class TS3DNSServer extends Thread {
     
     public static boolean existsSlave(String sid) { //Client
         if(TS3DNSClusterServer.cb_enabled) {
-            found = TS3DNSServer.bucket.get("slaves");
+            // S-3: use local variable instead of shared static field
+            JsonDocument found = TS3DNSServer.bucket.get("slaves");
             if(found == null) { return false; }
             if(!found.content().containsKey(sid)) { return false; }
             JsonObject content = found.content().getObject(sid);
-            Map data = content.toMap();
+            Map<String, Object> data = content.toMap();
             return data != null;
         }
         
@@ -132,9 +145,10 @@ public class TS3DNSServer extends Thread {
     
     public static void setMaster(String sid, int online) { //Server
         if(TS3DNSClusterServer.cb_enabled) {
-            Map data = new HashMap();
+            Map<String, Object> data = new HashMap<>();
             data.put("online", online);
-            found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
+            // S-3: use local variable instead of shared static field
+            JsonDocument found = TS3DNSServer.bucket.get(TS3DNSServer.cb_ma_table);
             if(found != null) { 
                 JsonObject content = found.content();
                 content.put(sid, data);
@@ -145,11 +159,12 @@ public class TS3DNSServer extends Thread {
     
     public static void setSlave(String sid, int time) { //Client
         if(TS3DNSClusterServer.cb_enabled) {
-            Map data = new HashMap();
+            Map<String, Object> data = new HashMap<>();
             data.put("time", time);
-            data.put("ip", TS3DNSCluster.properties.getProperty("default_server_ip"));
-            data.put("port", TS3DNSCluster.properties.getProperty("default_server_port"));
-            found = TS3DNSServer.bucket.get("slaves");
+            data.put("ip", TS3DNSCluster.getProperty("default_server_ip"));
+            data.put("port", TS3DNSCluster.getProperty("default_server_port"));
+            // S-3: use local variable instead of shared static field
+            JsonDocument found = TS3DNSServer.bucket.get("slaves");
             if(found != null) { 
                 JsonObject content = found.content();
                 content.put(sid, data);

@@ -28,7 +28,6 @@ import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ts3dns.cluster.TS3DNSCluster;
-import static ts3dns.cluster.TS3DNSCluster.properties;
 import ts3dns.cluster.TS3DNSClusterServer;
 import ts3dns.database.MySQLDatabaseHandler;
 
@@ -65,7 +64,7 @@ public class TS3Updater extends Thread {
         config.setQueryPort(((int)port));
         config.setCommandTimeout(15000);
         
-        if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
+        if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
             config.setEnableCommunicationsLogging(true);
         }
         
@@ -77,54 +76,56 @@ public class TS3Updater extends Thread {
         
         if(!"".equals(api.getVersion().getBuild())) {
             query = "SELECT `port`,`id` FROM `dns` WHERE `server-id` = ? AND (`machine-id` = ? OR `machine-id` = 0);";
-            ResultSet rs;
+            // B-2: use try-with-resources for ResultSet
             try (PreparedStatement stmt = this.mysql.prepare(query)) {
                 stmt.setInt(1, this.sid);
                 stmt.setInt(2, TS3DNSClusterServer.machine_id);
-                rs = stmt.executeQuery();
-                while(rs.next()) {
-                    //Select Server
-                    if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                        TS3DNSCluster.log(TS3Updater.class.getName(), Level.INFO,(new StringBuilder("Update TS3 Server for ID: ").append(this.sid).append(" [").append(ip).append(":").append(rs.getString("port")).append(" ]")).toString(),false);
-                    }
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while(rs.next()) {
+                        //Select Server
+                        if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                            TS3DNSCluster.log(TS3Updater.class.getName(), Level.INFO,
+                                    "Update TS3 Server for ID: " + this.sid
+                                    + " [" + ip + ":" + rs.getString("port") + " ]", false);
+                        }
 
-                    api.selectVirtualServerByPort(Integer.parseInt(rs.getString("port")));
-                    query = "UPDATE `dns` SET `active_slots` = ?, `slots` = ?, `name` = ?, `vserver-id` = ? WHERE `id` = ?;";
+                        api.selectVirtualServerByPort(Integer.parseInt(rs.getString("port")));
+                        query = "UPDATE `dns` SET `active_slots` = ?, `slots` = ?, `name` = ?, `vserver-id` = ? WHERE `id` = ?;";
+                        // B-2: use try-with-resources for inner PreparedStatement
                         try (PreparedStatement stmt_update = this.mysql.prepare(query)) {
-                        int ClientsOnline = api.getServerInfo().getClientsOnline();
-                        int MaxClients = api.getServerInfo().getMaxClients();
-                        String ServerName = api.getServerInfo().getName();
-                        if(ClientsOnline != 0) {
-                            ClientsOnline = (ClientsOnline-1);
-                        }
+                            int ClientsOnline = api.getServerInfo().getClientsOnline();
+                            int MaxClients = api.getServerInfo().getMaxClients();
+                            String ServerName = api.getServerInfo().getName();
+                            if(ClientsOnline != 0) {
+                                ClientsOnline = (ClientsOnline-1);
+                            }
 
-                        if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                            TS3DNSCluster.log(TS3Updater.class.getName(), Level.INFO,(new StringBuilder("Update TS3 Server for ID: ").append(this.sid).
-                                    append(" [ClientsOnline=").append(ClientsOnline).append(",").
-                                    append(" MaxClients=").append(MaxClients).append(",").
-                                    append(" ServerName=").append(ServerName).append("]")).toString(),false);
-                        }
+                            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                                TS3DNSCluster.log(TS3Updater.class.getName(), Level.INFO,
+                                        "Update TS3 Server for ID: " + this.sid
+                                        + " [ClientsOnline=" + ClientsOnline
+                                        + ", MaxClients=" + MaxClients
+                                        + ", ServerName=" + ServerName + "]", false);
+                            }
 
-                        //Insert to SQL-Query
-                        stmt_update.setInt(1, ClientsOnline);
-                        stmt_update.setInt(2, MaxClients);
-                        stmt_update.setString(3,  ServerName);
-                        stmt_update.setInt(4,  api.getServerInfo().getId());
-                        stmt_update.setInt(5, Integer.parseInt(rs.getString("id")));
-                        stmt_update.executeQuery();
-                        stmt_update.close();
+                            //Insert to SQL-Query
+                            stmt_update.setInt(1, ClientsOnline);
+                            stmt_update.setInt(2, MaxClients);
+                            stmt_update.setString(3, ServerName);
+                            stmt_update.setInt(4, api.getServerInfo().getId());
+                            stmt_update.setInt(5, Integer.parseInt(rs.getString("id")));
+                            // P-6: use executeUpdate() for UPDATE/DML statements
+                            stmt_update.executeUpdate();
 
-                        //Lock
-                        int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
-                        TS3DNSClusterServer.lock_update.put(this.sid, currentTimestamp);
+                            //Lock
+                            int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
+                            TS3DNSClusterServer.lock_update.put(this.sid, currentTimestamp);
 
-                    } catch (SQLException ex) {
-                        Logger.getLogger(TS3Updater.class.getName()).log(Level.SEVERE, null, ex);
-                    }         
+                        } catch (SQLException ex) {
+                            Logger.getLogger(TS3Updater.class.getName()).log(Level.SEVERE, null, ex);
+                        }         
+                    }
                 }
-
-                stmt.close(); 
-                rs.close();
             } catch (SQLException ex) {
                 Logger.getLogger(TS3Updater.class.getName()).log(Level.SEVERE, null, ex);
             }

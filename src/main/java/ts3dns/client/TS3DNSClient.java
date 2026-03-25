@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ts3dns.cluster.TS3DNSCluster;
-import static ts3dns.cluster.TS3DNSCluster.properties;
 import ts3dns.cluster.TS3DNSClusterServer;
 import ts3dns.database.MySQLDatabaseHandler;
 import ts3dns.server.TS3DNSServer;
@@ -61,60 +60,53 @@ public class TS3DNSClient extends Thread {
         this.search_dns = "";
         this.input = null;
         this.output = null;
+        this.default_ip = default_ip;
+        this.default_port = default_port;
         this.ip = default_ip;
         this.port = default_port;
     }
 
+    @Override
     public void run() {
-        try {
-            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
+        // B-1: use try-with-resources to guarantee socket/stream closure
+        try (Socket sock = this.client) {
+            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
                 TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
-                        (new StringBuilder("Get connection from: ")).append(client.getInetAddress().getHostAddress()).toString(),false);
+                        "Get connection from: " + sock.getInetAddress().getHostAddress(), false);
             }
             
             //Get DNS
-            client.setSoTimeout(50); //Set Timeout
-            input = new BufferedReader(new InputStreamReader(client.getInputStream(), "UTF-8"));
+            sock.setSoTimeout(50); //Set Timeout
+            input = new BufferedReader(new InputStreamReader(sock.getInputStream(), "UTF-8"));
             search_dns = readUntilEnd();
 
-            //Check has Domain
-            if(search_dns.length() <= 3 /*|| !search_dns.matches("/.*?(.*?\\.[a-zA-Z]+)")*/) {
-                if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("No DNS!")).toString(),false);
+            // S-4: validate DNS name format; S-5 length already enforced in readUntilEnd()
+            if(search_dns.length() <= 3 || !search_dns.matches("^[a-zA-Z0-9][a-zA-Z0-9\\-\\.]{1,253}[a-zA-Z0-9]$")) {
+                if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO, "No DNS!", false);
                 }
-                try {
-                    if(!input.ready())
-                        input.close();
-                    
-                    if(input != null)
-                        input.close();
-
-                    if(output != null)
-                        output.close();
-
-                    client.close();
-                } catch(IOException exception) {}
-                
                 return;
             }
             
-            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Search IP/Port for DNS: '")).
-                        append(search_dns).append("'").toString(),false);
+            // S-7: sanitise user input before writing to logs to prevent log injection
+            String safeDns = search_dns.replaceAll("[\r\n\t]", "_");
+            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
+                        "Search IP/Port for DNS: '" + safeDns + "'", false);
             }
             
             if(!TS3DNSClusterServer.existsCache(search_dns)) {
-                if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("DNS: '")).
-                            append(search_dns).append("' not in Cache! Search in database..").toString(),false);
+                if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
+                            "DNS: '" + safeDns + "' not in Cache! Search in database..", false);
                 }
                 
                 query = "SELECT `ip`,`port`,`server-id`,`failback_ip`,`failback_port`,`failback` FROM `dns` WHERE (`dns` = ? OR `dns` = '*') AND (`machine-id` = ? OR `machine-id` = 0) ORDER BY `id` DESC LIMIT 1;";
-                ResultSet rs;
+                // B-2: use try-with-resources for ResultSet
                 try (PreparedStatement stmt = this.mysql.prepare(query)) {
                     stmt.setString(1, search_dns);
                     stmt.setInt(2, TS3DNSClusterServer.machine_id);
-                    rs = stmt.executeQuery();
+                    try (ResultSet rs = stmt.executeQuery()) {
                         while(rs.next()) {
                             ip = rs.getString("ip");
                             port = rs.getString("port");
@@ -123,85 +115,79 @@ public class TS3DNSClient extends Thread {
                             failback_port = rs.getString("failback_port");
                             failback = rs.getString("failback");
                             TS3DNSClusterServer.setCache(search_dns, ip, port, sid, failback_ip, failback_port, failback);
-                            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Found: '")).
-                                append(ip).append(":").append(port).append("' for DNS: '").append(search_dns).append("'").toString(),false);
+                            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
+                                        "Found: '" + ip + ":" + port + "' for DNS: '" + safeDns + "'", false);
                             }
-                       }
-                    
-                    stmt.close(); 
-                    rs.close();
-                } 
+                        }
+                    }
+                }
             } else {
                 //In Cache
-                if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Get IP from Cache")).toString(),false);
+                if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO, "Get IP from Cache", false);
                 }
                 
-                Map data = TS3DNSClusterServer.getCache(search_dns);
+                Map<String, Object> data = TS3DNSClusterServer.getCache(search_dns);
                 ip = data.get("ip").toString();
                 port = data.get("port").toString();
                 sid = data.get("sid").toString();
                 failback_ip = data.get("fback_ip").toString();
                 failback_port = data.get("fback_port").toString();
                 failback = data.get("fback").toString();
-                if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Found: ")).
-                    append(ip).append(":").append(port).append(" for DNS: ").append(search_dns).append(" in Cache").toString(),false);
+                if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                    TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
+                            "Found: " + ip + ":" + port + " for DNS: " + safeDns + " in Cache", false);
                 }
             }
 
             //Check Server
-            if(Boolean.parseBoolean(properties.getProperty("default_master_server")) || 
-                    Boolean.parseBoolean(properties.getProperty("default_slave_server"))) {
-                Map msd = null;
+            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_master_server")) || 
+                    Boolean.parseBoolean(TS3DNSCluster.getProperty("default_slave_server"))) {
+                Map<String, Object> msd = null;
                 
                 //Master Server Select
-                //Suche nach ServerID
-                if(TS3DNSServer.existsMaster((new StringBuilder("sid_").append(sid)).toString())) {
+                if(TS3DNSServer.existsMaster("sid_" + sid)) {
                     //1.Master
-                    msd = TS3DNSServer.getMaster((new StringBuilder("sid_").append(sid)).toString());
+                    msd = TS3DNSServer.getMaster("sid_" + sid);
                     
                     int is_online = Integer.parseInt(msd.get("online").toString());
                     int has_failback = Integer.parseInt(failback);
                     if((is_online != 1) && (has_failback == 1)) { //Master 1. ist offline
-                        if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Server: ")).
-                            append(ip).append(":").append(port).append(" is Offline! Failback to: ").append(failback_ip).
-                                    append(":").append(failback_port).toString(),false);
+                        if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
+                                    "Server: " + ip + ":" + port + " is Offline! Failback to: "
+                                    + failback_ip + ":" + failback_port, false);
                         }
 
-                        //Check Failback Server..
-                        query = "SELECT `online`,`port`,`ip` FROM `servers` WHERE `ip` LIKE ?;";
-                        ResultSet rs; 
+                        // S-6: use = instead of LIKE to avoid unintended wildcard matching
+                        query = "SELECT `online`,`port`,`ip` FROM `servers` WHERE `ip` = ?;";
                         int is_online_fb = 0;
+                        // B-2: use try-with-resources for ResultSet
                         try (PreparedStatement stmt = this.mysql.prepare(query)) {
-                               stmt.setString(1, failback_ip);
-                               rs = stmt.executeQuery();
-                               if(rs.next()) { 
+                            stmt.setString(1, failback_ip);
+                            try (ResultSet rs = stmt.executeQuery()) {
+                                if(rs.next()) { 
                                     is_online_fb = Integer.parseInt(rs.getString("online"));
                                     ip = rs.getString("ip");
                                     port = rs.getString("port");
-                               }
-
-                               stmt.close(); rs.close();
+                                }
+                            }
                         }
                      
                         if(is_online_fb != 0) {
-                            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Failback Server: ")).
-                                append(ip).append(":").append(port).append(" is Online! Failback to: ").append(failback_ip).
-                                        append(":").append(failback_port).toString(),false);
+                            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
+                                        "Failback Server: " + ip + ":" + port + " is Online! Failback to: "
+                                        + failback_ip + ":" + failback_port, false);
                             }
-     
                             ip = failback_ip; port = failback_port;
                         } else {
-                            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,(new StringBuilder("Failback Server: ")).
-                                        append(failback_ip).append(":").append(failback_port).append(" is Offline! Send default: ").append(default_ip).
-                                        append(":").append(default_port).toString(),false);
+                            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.INFO,
+                                        "Failback Server: " + failback_ip + ":" + failback_port
+                                        + " is Offline! Send default: " + default_ip + ":" + default_port, false);
                             }
-
                             ip = default_ip; port = default_port;
                         }
                     }
@@ -212,70 +198,26 @@ public class TS3DNSClient extends Thread {
             query = "UPDATE `dns` SET `lastused` = ?, `usecount` = (usecount+1) WHERE `ip` = ? AND `port` = ? AND `dns` = ?;";
             try (PreparedStatement stmt_update = this.mysql.prepare(query)) {
                 int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
-
-                //Insert to SQL-Query
                 stmt_update.setInt(1, currentTimestamp);
                 stmt_update.setString(2, ip);
                 stmt_update.setString(3, port);
                 stmt_update.setString(4, search_dns);
-                stmt_update.executeQuery();
-                stmt_update.close();
+                // P-6: use executeUpdate() for UPDATE/DML statements
+                stmt_update.executeUpdate();
             } catch (SQLException ex) {
                 Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, ex);
             }
 
             //Send IP
-            output = new PrintStream(client.getOutputStream(), true, "UTF-8");
-            output.print((new StringBuilder(ip).append(":").append(port)));
+            output = new PrintStream(sock.getOutputStream(), true, "UTF-8");
+            output.print(ip + ":" + port);
             output.flush();
-            
-            try {
-                if(input != null)
-                    input.close();
-                
-                if(output != null)
-                    output.close();
-          
-                client.close();
-            } catch(IOException exception) {
-                TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
-            }
         } catch (SocketException exception) {
-                if (this.input != null) {
-                    try {
-                        this.input.close();
-                    } catch (IOException ex) {
-                        Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                }
-                if (this.output != null) {
-                    this.output.close();
-                }
-            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
+            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE, exception.getMessage(), true);
         } catch (UnsupportedEncodingException exception) {
-                if (this.input != null) {
-                    try {
-                        this.input.close();
-                    } catch (IOException ex) {
-                        Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                }
-                if (this.output != null) {
-                    this.output.close();
-                }
-            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
+            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE, exception.getMessage(), true);
         } catch (IOException | SQLException exception) {
-                if (this.input != null) {
-                    try {
-                        this.input.close();
-                    } catch (IOException ex) {
-                        Logger.getLogger(TS3DNSClient.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                }
-                if (this.output != null) {
-                    this.output.close();
-                }
-            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
+            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE, exception.getMessage(), true);
         }
     }
     
@@ -284,11 +226,13 @@ public class TS3DNSClient extends Thread {
             StringBuilder sb = new StringBuilder();
             do {
                 sb.append((char)input.read());
+                // S-5: limit input to 255 chars to prevent DoS / heap exhaustion
+                if(sb.length() >= 255) break;
             }
             while(input.ready());
             return sb.toString();
         } catch(IOException exception) {
-            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE,exception.getMessage(),true);
+            TS3DNSCluster.log(TS3DNSClient.class.getName(), Level.SEVERE, exception.getMessage(), true);
             return "";
         }
     }

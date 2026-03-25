@@ -31,53 +31,59 @@ import ts3dns.server.TS3DNSServer;
 public class TS3DNSClusterMaster extends Thread {
     public Bucket bucket;
     public String cb_ma_table;
-    private static JsonDocument found = null;
     
+    // Q-6: add @Override annotation
+    @Override
     public void run() 
     {
-        Map lock = new HashMap();
-        while (true) {
-            found = TS3DNSServer.bucket.get("slaves");
+        Map<String, Object> lock = new HashMap<>();
+        // B-6: use isInterrupted() for clean shutdown support
+        while(!Thread.currentThread().isInterrupted()) {
+            JsonDocument found = TS3DNSServer.bucket.get("slaves");
             if(found == null) { return; }
             JsonObject content = found.content();
-            Map data = content.toMap();
+            // Q-1: use typed Map
+            Map<String, Object> data = content.toMap();
             
-            Map<String, Object> map = data; Map slave = null;
-            for (Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator(); it.hasNext();) {
+            for (Iterator<Map.Entry<String, Object>> it = data.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<String, Object> entry = it.next();
                 if("null".equals(entry.getKey()) || "null".equals(entry.getValue()) || "".equals(entry.getKey().trim()))
                     continue;
                 
                 if(!lock.containsKey(entry.getKey())) {
-                    slave = TS3DNSServer.getSlave(entry.getKey());
+                    Map<String, Object> slave = TS3DNSServer.getSlave(entry.getKey());
                     String id = entry.getKey().replace("slave_", "");
                     TS3DNSCluster.log(TS3DNSClusterMaster.class.getName(), Level.INFO,
-                            (new StringBuilder("Slave server with id: '"+id+"' is detected!")).toString(),false);
+                            "Slave server with id: '" + id + "' is detected!", false);
                     TS3DNSCluster.log(TS3DNSClusterMaster.class.getName(), Level.INFO,
-                            (new StringBuilder("Slave server '"+slave.get("ip")+":"+slave.get("port")+"' is online!")).toString(),false);
+                            "Slave server '" + slave.get("ip") + ":" + slave.get("port") + "' is online!", false);
                     lock.put(entry.getKey(), entry);
                 }
                 
-                slave = TS3DNSServer.getSlave(entry.getKey());
+                Map<String, Object> slave = TS3DNSServer.getSlave(entry.getKey());
                 int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
 
-                if(((int)slave.get("time")+2) <= currentTimestamp) {
+                if(((int)slave.get("time") + 2) <= currentTimestamp) {
                     lock.remove(entry.getKey());
                     String id = entry.getKey().replace("slave_", "");
                     TS3DNSCluster.log(TS3DNSClusterMaster.class.getName(), Level.INFO,
-                            (new StringBuilder("Slave server with id: '"+id+"' is offline!")).toString(),false);
+                            "Slave server with id: '" + id + "' is offline!", false);
 
                     found = TS3DNSServer.bucket.get("slaves");
                     if(found != null) { 
                         JsonObject content_bu = found.content();
-                        content_bu.removeKey(entry.getKey().toString());
+                        content_bu.removeKey(entry.getKey());
                         bucket.replace(JsonDocument.create("slaves", content_bu));
                     }
                 }
             }
             try {
                 Thread.sleep(500);
-            } catch (InterruptedException ex) { }
+            } catch (InterruptedException ex) {
+                // B-6: restore interrupt flag and exit loop
+                Thread.currentThread().interrupt();
+                break;
+            }
         }    
     }
 }

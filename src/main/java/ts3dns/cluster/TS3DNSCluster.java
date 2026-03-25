@@ -29,25 +29,37 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class TS3DNSCluster {
-    public static Properties properties = null;
+    // Q-7: private with getter to prevent external mutation
+    private static Properties properties = null;
     public static final String VERSION = "TS3-DNS Cluster 1.0 Beta";
     public static String configFile = "TS3DNS-Cluster.cfg";
     private static TS3DNSClusterServer server;
-    
+
+    // Q-7: public getter for individual property values
+    public static String getProperty(String key) {
+        return properties != null ? properties.getProperty(key) : null;
+    }
+
     public static void main(String[] args) {
+        // Q-4: support command-line config file path
+        if (args.length > 0) {
+            configFile = args[0];
+        }
         if(loadConfig()) {
-            TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Start ")).append(VERSION).toString(),false);
+            TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO, "Start " + VERSION, false);
             try {
                 server = new TS3DNSClusterServer(); 
                 Runtime runtime = Runtime.getRuntime();
-                runtime.addShutdownHook(new Thread(() -> {  server.stop(); }));
+                // B-5: renamed stop() to shutdown()
+                runtime.addShutdownHook(new Thread(() -> { server.shutdown(); }));
                 server.start();
-                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Running ")).append(VERSION).toString(),false);
+                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO, "Running " + VERSION, false);
             } catch (SQLException ex) {
-                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.SEVERE,ex.toString(),true);
+                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.SEVERE, ex.toString(), true);
             }
         } else {
-            Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.CONFIG, (new StringBuilder("Error while loading configuration from ")).append(configFile).toString(),false);
+            Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.CONFIG,
+                    "Error while loading configuration from " + configFile);
         }
     }
     
@@ -56,13 +68,15 @@ public class TS3DNSCluster {
         boolean retValue = false;
         File confFile = new File(configFile);
         if(!confFile.isFile()) { 
-            System.out.println("Config file:'"+configFile+"' not found!"); 
+            System.out.println("Config file:'" + configFile + "' not found!"); 
             return retValue; 
         }
         properties = new Properties();
-        try {
-            properties.load(new FileInputStream(confFile));
-            if(!properties.isEmpty() && properties != null) {
+        // S-11: use try-with-resources to avoid FileInputStream resource leak
+        try (FileInputStream fis = new FileInputStream(confFile)) {
+            properties.load(fis);
+            // S-10: check null before calling isEmpty()
+            if(properties != null && !properties.isEmpty()) {
                 retValue = true;
             }
         } catch (IOException exception) {
@@ -72,11 +86,10 @@ public class TS3DNSCluster {
         return retValue;
     }
     
+    // Q-2: use java.util.logging with proper level filtering
     public static void log(String classn, Level lvl, String msg, boolean error) {
-      //  if(Boolean.parseBoolean(properties.getProperty("default_debug")) || error) {
-         //   Logger.getLogger(classn).log(lvl, msg);
-      //  } else {
-            System.out.println(msg);
-      //  }
+        if(error || (properties != null && Boolean.parseBoolean(properties.getProperty("default_debug", "false")))) {
+            Logger.getLogger(classn).log(lvl, msg);
+        }
     }
 }

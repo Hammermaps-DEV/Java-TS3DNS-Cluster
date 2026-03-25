@@ -20,24 +20,32 @@
 package ts3dns.cluster;
 
 import java.util.logging.Level;
-import static ts3dns.cluster.TS3DNSCluster.properties;
 import ts3dns.server.TS3DNSServer;
 
 public class TS3DNSClusterSlave extends Thread {
     
+    // Q-6: add @Override annotation
+    @Override
     public void run() 
     {
-        String slave_id = new StringBuilder("slave_").append(TS3DNSClusterServer.machine_id).toString();
-        TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Register Slave with ID:")).append(TS3DNSClusterServer.cb_machine_id).toString(),false);
-        while (true) {
+        String slave_id = "slave_" + TS3DNSClusterServer.machine_id;
+        TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,
+                "Register Slave with ID:" + TS3DNSClusterServer.cb_machine_id, false);
+        // B-6: use isInterrupted() for clean shutdown support
+        while(!Thread.currentThread().isInterrupted()) {
             int currentTimestamp = (int)(System.currentTimeMillis() / 1000L);
             TS3DNSServer.setSlave(slave_id, currentTimestamp);
-            if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,(new StringBuilder("Update Slave with ID:")).append(TS3DNSClusterServer.cb_machine_id).append(" / ").append(currentTimestamp).toString(),false);
+            if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO,
+                        "Update Slave with ID:" + TS3DNSClusterServer.cb_machine_id + " / " + currentTimestamp, false);
             }
             try {
                 Thread.sleep(1000);
-            } catch (InterruptedException ex) { }
+            } catch (InterruptedException ex) {
+                // B-6: restore interrupt flag and exit loop
+                Thread.currentThread().interrupt();
+                break;
+            }
         }    
     }
 }
