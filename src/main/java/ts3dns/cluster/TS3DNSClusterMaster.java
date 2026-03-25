@@ -19,9 +19,10 @@
  */
 package ts3dns.cluster;
 
-import com.couchbase.client.java.Bucket;
-import com.couchbase.client.java.document.JsonDocument;
-import com.couchbase.client.java.document.json.JsonObject;
+import com.couchbase.client.java.Collection;
+import com.couchbase.client.java.json.JsonObject;
+import com.couchbase.client.java.kv.GetResult;
+import com.couchbase.client.core.error.DocumentNotFoundException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -29,7 +30,7 @@ import java.util.logging.Level;
 import ts3dns.server.TS3DNSServer;
 
 public class TS3DNSClusterMaster extends Thread {
-    public Bucket bucket;
+    public Collection bucket;
     public String cb_ma_table;
     
     // Q-6: add @Override annotation
@@ -39,9 +40,13 @@ public class TS3DNSClusterMaster extends Thread {
         Map<String, Object> lock = new HashMap<>();
         // B-6: use isInterrupted() for clean shutdown support
         while(!Thread.currentThread().isInterrupted()) {
-            JsonDocument found = TS3DNSServer.bucket.get("slaves");
-            if(found == null) { return; }
-            JsonObject content = found.content();
+            GetResult foundResult;
+            try {
+                foundResult = TS3DNSServer.bucket.get("slaves");
+            } catch (DocumentNotFoundException e) {
+                return;
+            }
+            JsonObject content = foundResult.contentAsObject();
             // Q-1: use typed Map
             Map<String, Object> data = content.toMap();
             
@@ -69,11 +74,13 @@ public class TS3DNSClusterMaster extends Thread {
                     TS3DNSCluster.log(TS3DNSClusterMaster.class.getName(), Level.INFO,
                             "Slave server with id: '" + id + "' is offline!", false);
 
-                    found = TS3DNSServer.bucket.get("slaves");
-                    if(found != null) { 
-                        JsonObject content_bu = found.content();
+                    try {
+                        GetResult updResult = TS3DNSServer.bucket.get("slaves");
+                        JsonObject content_bu = updResult.contentAsObject();
                         content_bu.removeKey(entry.getKey());
-                        bucket.replace(JsonDocument.create("slaves", content_bu));
+                        bucket.replace("slaves", content_bu);
+                    } catch (DocumentNotFoundException e) {
+                        // nothing to update
                     }
                 }
             }
