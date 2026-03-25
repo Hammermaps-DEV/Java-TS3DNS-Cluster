@@ -27,6 +27,7 @@ import java.sql.SQLException;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import ts3dns.admin.AdminUI;
 
 public class TS3DNSCluster {
     // Q-7: private with getter to prevent external mutation
@@ -48,10 +49,19 @@ public class TS3DNSCluster {
         if(loadConfig()) {
             TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO, "Start " + VERSION, false);
             try {
-                server = new TS3DNSClusterServer(); 
+                server = new TS3DNSClusterServer();
+
+                // Start Admin UI if enabled
+                final AdminUI adminUI = startAdminUI();
+
                 Runtime runtime = Runtime.getRuntime();
                 // B-5: renamed stop() to shutdown()
-                runtime.addShutdownHook(new Thread(() -> { server.shutdown(); }));
+                runtime.addShutdownHook(new Thread(() -> {
+                    server.shutdown();
+                    if (adminUI != null) {
+                        adminUI.shutdown();
+                    }
+                }));
                 server.start();
                 TS3DNSCluster.log(TS3DNSCluster.class.getName(), Level.INFO, "Running " + VERSION, false);
             } catch (SQLException ex) {
@@ -60,6 +70,24 @@ public class TS3DNSCluster {
         } else {
             Logger.getLogger(TS3DNSCluster.class.getName()).log(Level.CONFIG,
                     "Error while loading configuration from " + configFile);
+        }
+    }
+
+    /** Starts the Admin UI if {@code admin_ui_enabled=true}; returns the instance or null. */
+    private static AdminUI startAdminUI() {
+        String enabled = getProperty("admin_ui_enabled");
+        if (!"true".equalsIgnoreCase(enabled)) {
+            log(TS3DNSCluster.class.getName(), Level.INFO, "Admin UI is disabled.", false);
+            return null;
+        }
+        try {
+            AdminUI adminUI = new AdminUI();
+            adminUI.start();
+            return adminUI;
+        } catch (Exception ex) {
+            log(TS3DNSCluster.class.getName(), Level.SEVERE,
+                    "Failed to start Admin UI: " + ex.getMessage(), true);
+            return null;
         }
     }
     
