@@ -26,39 +26,45 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.logging.Level;
 import ts3dns.cluster.TS3DNSCluster;
-import static ts3dns.cluster.TS3DNSCluster.properties;
 
 public class MySQLDatabaseHandler {
     private Connection connection = null;
+    // S-1: keep URL without credentials so it is safe to log
     private String url = "jdbc:mariadb://localhost:3306/project";
+    private String user = "";
+    private String pass = "";
     
     public MySQLDatabaseHandler(String host, int port, String user, String pass, String db) {
-        this.url = "jdbc:mariadb://"+host+":"+port+"/"+db+"?user="+user+"&password="+pass;
+        // S-1: credentials are stored separately, not embedded in the URL
+        this.url = "jdbc:mariadb://" + host + ":" + port + "/" + db;
+        this.user = user;
+        this.pass = pass;
         try {
             Class.forName("org.mariadb.jdbc.Driver");
         } catch (ClassNotFoundException ex) {
-            TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.SEVERE,ex.getMessage(),true);
+            TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.SEVERE, ex.getMessage(), true);
         }
     }
 
+    // S-8: fix inverted isClosed() condition – connection was never closed before
     public void close() throws SQLException {
-        if(connection.isClosed()) {
+        if(connection != null && !connection.isClosed()) {
             connection.close();
         }
     }
     
     private void getConnection() throws SQLException {
         if (connection == null || connection.isClosed() || !connection.isValid(3)) {
-            TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("Connect to MySQL Server: ")).append(url).toString(),false);
-            connection = DriverManager.getConnection(url);
+            // S-1: log URL without credentials
+            TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,
+                    "Connect to MySQL Server: " + url, false);
+            // S-1: pass credentials as separate parameters, not in URL
+            connection = DriverManager.getConnection(url, user, pass);
         }
     }
 
     public PreparedStatement prepare(String query, String dns) throws SQLException {
         this.getConnection();
-        if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-       //     TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("MySQL Query: ")).append(query).toString(),false);
-        }
         PreparedStatement stmt = connection.prepareStatement(query);
         stmt.setString(1, dns);
         return stmt;
@@ -66,10 +72,6 @@ public class MySQLDatabaseHandler {
     
     public PreparedStatement prepare(String query) throws SQLException {
         this.getConnection();
-        if(Boolean.parseBoolean(properties.getProperty("default_debug"))) {
-        //    TS3DNSCluster.log(MySQLDatabaseHandler.class.getName(), Level.INFO,(new StringBuilder("MySQL Query: ")).append(query).toString(),false);
-        }
-        PreparedStatement stmt = connection.prepareStatement(query);
-        return stmt;
+        return connection.prepareStatement(query);
     }
 }
