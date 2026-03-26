@@ -111,6 +111,9 @@ public class TS3DNSClusterServer {
             mysql = new MySQLDatabaseHandler(hostname, sql_port, username, password, database);
             default_ip = TS3DNSCluster.getProperty("default_ip_for_dns");
             default_port = TS3DNSCluster.getProperty("default_port_for_dns");
+
+            // Initialise flood / rate-limit protection
+            FloodProtection.getInstance().init(mysql);
             
             //Couchbase Cluster
             if(cb_enabled) {
@@ -206,6 +209,15 @@ public class TS3DNSClusterServer {
             try {
                 client = server.accept();
                 if(client.isConnected()) {
+                    String clientIp = client.getInetAddress().getHostAddress();
+                    if (!FloodProtection.getInstance().isAllowed(clientIp)) {
+                        if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
+                            TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
+                                    "Flood/Ban: blocked connection from " + clientIp, false);
+                        }
+                        try { client.close(); } catch (IOException ignored) {}
+                        continue;
+                    }
                     if(Boolean.parseBoolean(TS3DNSCluster.getProperty("default_debug"))) {
                         TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
                                 "Connected " + client.getInetAddress(), false);
