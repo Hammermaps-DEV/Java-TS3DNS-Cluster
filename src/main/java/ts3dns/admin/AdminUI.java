@@ -15,6 +15,7 @@ package ts3dns.admin;
 import com.sun.net.httpserver.HttpServer;
 import ts3dns.admin.handlers.ClusterApiHandler;
 import ts3dns.admin.handlers.DnsApiHandler;
+import ts3dns.admin.handlers.FloodApiHandler;
 import ts3dns.admin.handlers.LoginHandler;
 import ts3dns.admin.handlers.ServersApiHandler;
 import ts3dns.admin.handlers.StaticFileHandler;
@@ -79,6 +80,7 @@ public class AdminUI {
         ServersApiHandler srvHandler = new ServersApiHandler(sessionManager, mysql);
         StatsApiHandler statsHandler = new StatsApiHandler(sessionManager, mysql);
         ClusterApiHandler clsHandler = new ClusterApiHandler(sessionManager);
+        FloodApiHandler floodHandler = new FloodApiHandler(sessionManager);
         StaticFileHandler staticHandler = new StaticFileHandler(sessionManager, "/");
 
         httpServer.createContext("/api/login",   loginHandler);
@@ -88,6 +90,7 @@ public class AdminUI {
         httpServer.createContext("/api/servers", srvHandler);
         httpServer.createContext("/api/stats",   statsHandler);
         httpServer.createContext("/api/cluster", clsHandler);
+        httpServer.createContext("/api/flood",   floodHandler);
         httpServer.createContext("/",            staticHandler);
 
         httpServer.setExecutor(Executors.newCachedThreadPool());

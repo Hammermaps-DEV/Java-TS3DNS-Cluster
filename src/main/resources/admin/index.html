@@ -130,6 +130,11 @@
                 <i class="bi bi-diagram-3"></i> Cluster
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#" data-section="flood">
+                <i class="bi bi-shield-exclamation"></i> Anti-Flood
+            </a>
+        </li>
     </ul>
     <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.07)">
         <a href="#" id="logoutBtn" class="nav-link">
@@ -268,6 +273,105 @@
             <div class="col-12 text-muted">Loading…</div>
         </div>
     </div>
+
+    <!-- ===== ANTI-FLOOD ===== -->
+    <div id="section-flood" class="page-section">
+
+        <!-- Stats row -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="value" id="flood-total-blocked">—</div>
+                    <div class="label">Total Blocked</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="value" id="flood-banned-count">—</div>
+                    <div class="label">Banned IPs</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="value" id="flood-tracked-ips">—</div>
+                    <div class="label">Tracked IPs</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="value" id="flood-status-badge" style="font-size:1.1rem">—</div>
+                    <div class="label">Protection</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings + Top blocked -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="stat-card text-start">
+                    <h6 class="section-title">Settings</h6>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="floodEnabled" role="switch">
+                                <label class="form-check-label" for="floodEnabled">Enable Anti-Flood Protection</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Max Requests per Window</label>
+                            <input class="form-control" id="floodMaxRequests" type="number" min="1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Window (seconds)</label>
+                            <input class="form-control" id="floodWindowSec" type="number" min="1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Auto-Ban Threshold (blocks)</label>
+                            <input class="form-control" id="floodAutoBanThresh" type="number" min="0">
+                            <small class="text-muted">0 = never auto-ban</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Auto-Ban Duration (seconds)</label>
+                            <input class="form-control" id="floodAutoBanDur" type="number" min="0">
+                            <small class="text-muted">0 = permanent</small>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button class="btn btn-accent btn-sm" onclick="saveFloodSettings()">
+                                <i class="bi bi-save me-1"></i>Save Settings
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="stat-card text-start">
+                    <h6 class="section-title">Top Blocked IPs</h6>
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>IP Address</th><th>Block Count</th><th>Action</th></tr></thead>
+                        <tbody id="floodTopBlockedTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ban list -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="section-title mb-0">IP Ban List</span>
+            <button class="btn btn-accent btn-sm" onclick="openBanModal()">
+                <i class="bi bi-ban me-1"></i>Ban IP
+            </button>
+        </div>
+        <div class="stat-card p-0" style="overflow:auto">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>IP Address</th><th>Reason</th><th>Banned At</th><th>Expires</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="floodBanTableBody"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <!-- ===== DNS MODAL ===== -->
@@ -373,6 +477,41 @@
 
 <!-- Toast container -->
 <div id="toastContainer"></div>
+
+<!-- ===== BAN MODAL ===== -->
+<div class="modal fade" id="banModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-ban me-2"></i>Ban IP Address</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2">
+                    <div class="col-12">
+                        <label class="form-label">IP Address</label>
+                        <input class="form-control" id="banIp" placeholder="192.168.1.1">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Reason</label>
+                        <input class="form-control" id="banReason" placeholder="Manual ban">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Duration (seconds)</label>
+                        <input class="form-control" id="banDuration" type="number" value="3600" min="0">
+                        <small class="text-muted">0 = permanent ban</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-danger btn-sm" onclick="submitBan()">
+                    <i class="bi bi-ban me-1"></i>Ban IP
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/app.js"></script>

@@ -26,7 +26,8 @@ const pageTitles = {
     dns:       'DNS Entries',
     servers:   'TS3 Servers',
     stats:     'Statistics',
-    cluster:   'Cluster'
+    cluster:   'Cluster',
+    flood:     'Anti-Flood'
 };
 
 function showSection(name) {
@@ -48,6 +49,7 @@ function showSection(name) {
         case 'servers':   loadServers(); break;
         case 'stats':     loadStats(); break;
         case 'cluster':   loadCluster(); break;
+        case 'flood':     loadFlood(); break;
     }
 
     // Close sidebar on mobile
@@ -471,3 +473,166 @@ async function loadCluster() {
 // Bootstrap: load dashboard on start
 // ============================================================
 loadDashboard();
+
+// ============================================================
+// Anti-Flood management
+// ============================================================
+
+let banModalInstance = null;
+
+async function loadFlood() {
+    const [settingsRes, statsRes, bansRes] = await Promise.all([
+        apiFetch('/api/flood/settings'),
+        apiFetch('/api/flood/stats'),
+        apiFetch('/api/flood/bans')
+    ]);
+    if (!settingsRes || !statsRes || !bansRes) return;
+
+    const settings = await settingsRes.json();
+    const stats    = await statsRes.json();
+    const bans     = await bansRes.json();
+
+    // Stats cards
+    document.getElementById('flood-total-blocked').textContent = stats.total_blocked ?? '—';
+    document.getElementById('flood-banned-count').textContent  = stats.banned_ips    ?? '—';
+    document.getElementById('flood-tracked-ips').textContent   = stats.tracked_ips   ?? '—';
+    const statusEl = document.getElementById('flood-status-badge');
+    if (settings.enabled) {
+        statusEl.textContent = 'Active';
+        statusEl.style.color = '#3fb950';
+    } else {
+        statusEl.textContent = 'Disabled';
+        statusEl.style.color = '#e94560';
+    }
+
+    // Settings form
+    document.getElementById('floodEnabled').checked          = settings.enabled;
+    document.getElementById('floodMaxRequests').value        = settings.max_requests_per_window;
+    document.getElementById('floodWindowSec').value          = settings.window_seconds;
+    document.getElementById('floodAutoBanThresh').value      = settings.auto_ban_threshold;
+    document.getElementById('floodAutoBanDur').value         = settings.auto_ban_duration_seconds;
+
+    // Top blocked IPs table
+    const topBody = document.getElementById('floodTopBlockedTable');
+    topBody.innerHTML = '';
+    const topEntries = Object.entries(stats.top_blocked_ips || {});
+    if (topEntries.length === 0) {
+        topBody.innerHTML = '<tr><td colspan="3" class="text-muted text-center py-2">No blocked IPs yet.</td></tr>';
+    } else {
+        const bannedSet = new Set((bans || []).map(b => b.ip));
+        topEntries.forEach(([ip, count]) => {
+            const isBanned = bannedSet.has(ip);
+            topBody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td>${escapeHtml(ip)}</td>
+                    <td>${count}</td>
+                    <td>
+                        ${isBanned
+                            ? '<span class="badge bg-danger">Banned</span>'
+                            : `<button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                       data-ip="${escapeHtml(ip)}"
+                                       onclick="openBanModal(this.dataset.ip)" title="Ban this IP">
+                                   <i class="bi bi-ban"></i>
+                               </button>`}
+                    </td>
+                </tr>`);
+        });
+    }
+
+    // Ban list table
+    const banBody = document.getElementById('floodBanTableBody');
+    banBody.innerHTML = '';
+    if (!bans || bans.length === 0) {
+        banBody.innerHTML = '<tr><td colspan="5" class="text-muted text-center py-3">No banned IPs.</td></tr>';
+    } else {
+        bans.forEach(b => {
+            const expiry = (b.expires_at === 0)
+                ? '<span class="badge bg-danger">Permanent</span>'
+                : fmtTimestamp(b.expires_at);
+            banBody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td><code>${escapeHtml(b.ip)}</code></td>
+                    <td>${escapeHtml(b.reason) || '—'}</td>
+                    <td>${fmtTimestamp(b.banned_at)}</td>
+                    <td>${expiry}</td>
+                    <td>
+                        <button class="btn btn-outline-success btn-sm py-0 px-1"
+                                data-ip="${escapeHtml(b.ip)}"
+                                onclick="unbanIp(this.dataset.ip)" title="Unban">
+                            <i class="bi bi-check-circle"></i>
+                        </button>
+                    </td>
+                </tr>`);
+        });
+    }
+}
+
+async function saveFloodSettings() {
+    const payload = {
+        enabled:                   document.getElementById('floodEnabled').checked,
+        max_requests_per_window:   parseInt(document.getElementById('floodMaxRequests').value) || 10,
+        window_seconds:            parseInt(document.getElementById('floodWindowSec').value)   || 1,
+        auto_ban_threshold:        parseInt(document.getElementById('floodAutoBanThresh').value) || 0,
+        auto_ban_duration_seconds: parseInt(document.getElementById('floodAutoBanDur').value)  || 3600
+    };
+    const r = await apiFetch('/api/flood/settings', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload)
+    });
+    if (!r) return;
+    const data = await r.json();
+    if (r.ok) {
+        showToast('Anti-Flood settings saved.');
+        loadFlood();
+    } else {
+        showToast(data.error || 'Error saving settings.', 'error');
+    }
+}
+
+function openBanModal(ip) {
+    document.getElementById('banIp').value       = ip || '';
+    document.getElementById('banReason').value   = '';
+    document.getElementById('banDuration').value = '3600';
+    if (!banModalInstance) {
+        banModalInstance = new bootstrap.Modal(document.getElementById('banModal'));
+    }
+    banModalInstance.show();
+}
+
+async function submitBan() {
+    const ip       = document.getElementById('banIp').value.trim();
+    const reason   = document.getElementById('banReason').value.trim();
+    const duration = parseInt(document.getElementById('banDuration').value) || 3600;
+    if (!ip) {
+        showToast('IP address is required.', 'error');
+        return;
+    }
+    const r = await apiFetch('/api/flood/bans', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ip, reason, duration_seconds: duration })
+    });
+    if (!r) return;
+    const data = await r.json();
+    if (r.ok) {
+        if (banModalInstance) banModalInstance.hide();
+        showToast('IP ' + ip + ' banned successfully.');
+        loadFlood();
+    } else {
+        showToast(data.error || 'Error banning IP.', 'error');
+    }
+}
+
+async function unbanIp(ip) {
+    if (!confirm('Unban IP ' + ip + '?')) return;
+    const r = await apiFetch('/api/flood/bans/' + encodeURIComponent(ip), { method: 'DELETE' });
+    if (!r) return;
+    const data = await r.json();
+    if (r.ok) {
+        showToast('IP ' + ip + ' unbanned.');
+        loadFlood();
+    } else {
+        showToast(data.error || 'Error unbanning IP.', 'error');
+    }
+}
