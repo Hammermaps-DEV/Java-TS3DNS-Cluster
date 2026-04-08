@@ -179,7 +179,12 @@ public class TS3DNSClusterMasterWatchdog extends Thread {
                 Object timeObj = data.get("time");
                 if (timeObj == null) continue;
 
-                int time = Integer.parseInt(timeObj.toString());
+                int time;
+                try {
+                    time = Integer.parseInt(timeObj.toString());
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
                 if ((time + timeout) > currentTimestamp) {
                     try {
                         int machineId = Integer.parseInt(key.substring("master_".length()));
@@ -250,8 +255,13 @@ public class TS3DNSClusterMasterWatchdog extends Thread {
         common.lvserver = null;
     }
 
-    /** Gracefully stops this watchdog thread. */
+    /** Gracefully stops this watchdog thread and waits up to 3 seconds for it to finish. */
     public void shutdown() {
         interrupt();
+        try {
+            join(3000);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
