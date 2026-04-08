@@ -74,6 +74,7 @@ public class TS3DNSClusterServer {
     public TS3DNSServer lvserver = null;
     public TS3DNSClusterMaster lvmaster = null;
     public TS3DNSClusterSlave lvslaveserver = null;
+    public TS3DNSClusterMasterWatchdog lvmasterwatchdog = null;
     // S-3: use ConcurrentHashMap to avoid race conditions
     public static Map<Integer, Integer> lock_update = new ConcurrentHashMap<>();
     // P-1: thread pool instead of creating a new OS thread per connection
@@ -194,16 +195,25 @@ public class TS3DNSClusterServer {
                 TS3DNSServer.cb_ma_table = cb_ma_table;
                 TS3DNSServer.bucket = bucket;
                 TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO,
-                        "Teamspeak 3 - DNS Master Server started!", false);
-                lvmaster = new TS3DNSClusterMaster();
-                lvmaster.bucket = bucket;
-                lvmaster.start(); //Start Slave Check
+                        "Teamspeak 3 - DNS Master Watchdog starting!", false);
+
+                // Initialise the shared masters heartbeat document
+                if(!bucket.exists(TS3DNSClusterMasterWatchdog.MASTERS_DOC).exists()) {
+                    bucket.insert(TS3DNSClusterMasterWatchdog.MASTERS_DOC,
+                            JsonObject.create().put("null", "null"));
+                }
+
+                // Start watchdog – it owns the TS3DNSServer and TS3DNSClusterMaster lifecycle
+                lvmasterwatchdog = new TS3DNSClusterMasterWatchdog(bucket, cb_ma_table, this, this.mysql);
+                lvmasterwatchdog.start();
             }
         }
         
-        //Status Updates for Database
-        lvserver = new TS3DNSServer(this, this.mysql); 
-        lvserver.start();
+        //Status Updates for Database – only start directly when not managed by the master watchdog
+        if (!(is_master && cb_enabled)) {
+            lvserver = new TS3DNSServer(this, this.mysql); 
+            lvserver.start();
+        }
         
         while(!Thread.currentThread().isInterrupted()) {
             try {
@@ -236,6 +246,10 @@ public class TS3DNSClusterServer {
     // B-5: renamed from stop() to shutdown() to avoid confusion with Thread.stop()
     public void shutdown() {
         TS3DNSCluster.log(TS3DNSClusterServer.class.getName(), Level.INFO, "Stop Server..", false);
+        // Stop master watchdog first so it demotes cleanly before Couchbase disconnects
+        if (lvmasterwatchdog != null) {
+            lvmasterwatchdog.shutdown();
+        }
         try {
             mysql.close();
         } catch (SQLException ex) {
